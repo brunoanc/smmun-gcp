@@ -46,7 +46,7 @@ jobs:
       - name: Prepare worker zip
         run: |
           cd ../worker
-          zip -r ../infra/worker.zip .
+          zip -r ../infra/worker.zip . -x '*/email_templates/*'
 
       - name: Terraform Init
         run: terraform init
