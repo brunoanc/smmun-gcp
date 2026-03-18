@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -59,7 +59,7 @@ jobs:
           docker push "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:latest"
 
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
