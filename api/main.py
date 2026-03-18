@@ -3,6 +3,7 @@ from fastapi import FastAPI, APIRouter, Form, File, UploadFile, Depends, status,
 from fastapi.responses import RedirectResponse
 from pydantic import EmailStr
 from dataclasses import dataclass
+import logging
 import unicodedata
 from starlette.datastructures import FormData
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -11,6 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timezone
 from google.cloud import storage, firestore, pubsub_v1
 from google.auth import default
+from time import perf_counter
+from uuid import uuid4
+import traceback
 import os
 import json
 import mimetypes
@@ -24,6 +28,57 @@ COMPROBANTES_BUCKET_NAME = os.environ["COMPROBANTES_BUCKET_NAME"]
 FIRESTORE_COLLECTION_NAME = os.environ["FIRESTORE_COLLECTION_NAME"]
 _, PROJECT_ID = default()
 PUB_SUB_TOPIC_NAME = os.environ["PUB_SUB_TOPIC_NAME"]
+
+# Logging
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(message)s"
+)
+logger = logging.getLogger(__name__)
+REQUEST_ID_HEADER = "X-Request-ID"
+LOG_COMPONENT = "api"
+SAFE_CONTEXT_KEYS = {
+    "comite",
+    "modalidad",
+    "tipo",
+    "content_type",
+    "size",
+    "esperado",
+    "recibido",
+    "numero_delegaciones",
+}
+
+
+def _sanitize_context_value(value):
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        return {"present": bool(value.strip()), "length": len(value)}
+    if isinstance(value, list):
+        return {"count": len(value), "unique_count": len({str(v) for v in value})}
+    if isinstance(value, dict):
+        return {k: _sanitize_context_value(v) for k, v in value.items()}
+    return {"type": type(value).__name__}
+
+
+def _to_json_log(event: str, severity: str, **fields) -> str:
+    request_id = fields.get("request_id")
+    payload = {"severity": severity, "event": event, "component": LOG_COMPONENT, **fields}
+    if request_id:
+        payload["logging.googleapis.com/trace"] = f"projects/{PROJECT_ID}/traces/{request_id}"
+    return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def log_info(event: str, **fields):
+    logger.info(_to_json_log(event, "INFO", **fields))
+
+
+def log_warning(event: str, **fields):
+    logger.warning(_to_json_log(event, "WARNING", **fields))
+
+
+def log_exception(event: str, **fields):
+    logger.error(_to_json_log(event, "ERROR", error=traceback.format_exc(), **fields))
 
 # Lista de comités y tipos no permitidos en codelegación
 COMITES_VALIDOS = [
@@ -129,10 +184,56 @@ router = APIRouter()
 app = FastAPI(docs_url=None, redoc_url=None)
 
 
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid4())
+    request.state.request_id = request_id
+    start = perf_counter()
+
+    log_info(
+        "request_started",
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+    )
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = int((perf_counter() - start) * 1000)
+        log_exception(
+            "request_failed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            duration_ms=duration_ms,
+        )
+        raise
+
+    duration_ms = int((perf_counter() - start) * 1000)
+    response.headers[REQUEST_ID_HEADER] = request_id
+    log_info(
+        "request_finished",
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+    )
+    return response
+
+
 # Mostrar página de error en vez de error en JSON
 @app.exception_handler(StarletteHTTPException)
 @app.exception_handler(RequestValidationError)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, "request_id", "unknown")
+    log_warning(
+        "request_redirected_to_error",
+        request_id=request_id,
+        path=request.url.path,
+        exception_type=type(exc).__name__,
+    )
     return RedirectResponse(f"{URL_BASE}/registro/error/", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -181,6 +282,24 @@ def parse_delegacion(valor: str) -> tuple[str, str]:
     comite_valor, delegacion = valor.split(":", 1)
     return comite_valor, delegacion
 
+
+def raise_validation_error(request_id: str, message: str, **context):
+    sanitized_context = {}
+    for key, value in context.items():
+        if key in SAFE_CONTEXT_KEYS:
+            sanitized_context[key] = value
+        else:
+            sanitized_context[key] = _sanitize_context_value(value)
+
+    log_warning(
+        "validation_failed",
+        request_id=request_id,
+        reason=message,
+        context=sanitized_context,
+    )
+    raise ValueError(message)
+
+
 def parse_delegaciones_faculty(form, count: int):
     delegaciones = []
 
@@ -215,43 +334,47 @@ def parse_delegaciones_faculty(form, count: int):
 
 # Endpoint para el forms
 @router.post("/registro/delegaciones")
-async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFile = File(...)):
+async def registrar(request: Request, data: DelegacionFormData = Depends(), comprobante: UploadFile = File(...)):
+    request_id = getattr(request.state, "request_id", str(uuid4()))
+    submission_type = "delegacion"
+    log_info("delegaciones_start", request_id=request_id, modalidad=data.modalidad)
+
     # Validar archivo
     if comprobante.content_type is None or comprobante.size is None:
-        raise ValueError("No se envió la imagen.")
+        raise_validation_error(request_id, "No se envió la imagen.")
 
     if not (comprobante.content_type.startswith("image/") or comprobante.content_type == "application/pdf") or comprobante.size > 5242880:
-        raise ValueError("Imagen inválida.")
+        raise_validation_error(request_id, "Imagen inválida.", content_type=comprobante.content_type, size=comprobante.size)
 
     # Validar comités
     if data.modalidad == "pareja" and (data.comite_0 in ["Cumbre", "Crisis"] or data.comite_1 in ["Cumbre", "Crisis"] or data.comite_2 in ["Cumbre", "Crisis"]):
-        raise ValueError("Opción inválida de comité para codelegación.")
+        raise_validation_error(request_id, "Opción inválida de comité para codelegación.", comites=[data.comite_0, data.comite_1, data.comite_2])
 
     comites = [data.comite_0, data.comite_1, data.comite_2]
     if len(comites) != len(set(comites)):
-        raise ValueError("Opciones de comités repetidas.")
+        raise_validation_error(request_id, "Opciones de comités repetidas.", comites=comites)
 
     if data.delegacion_oficial == "si" and (not data.nombre_delegacion_oficial or not data.responsable_delegacion_oficial):
-        raise ValueError("Faltan datos de delegación oficial.")
+        raise_validation_error(request_id, "Faltan datos de delegación oficial.")
 
     # Validar países
     paises_0 = [data.comite_0_pais_0, data.comite_0_pais_1, data.comite_0_pais_2]
     if len(paises_0) != len(set(paises_0)):
-        raise ValueError("Opciones de delegación repetidas.")
+        raise_validation_error(request_id, "Opciones de delegación repetidas.", comite=data.comite_0, opciones=paises_0)
     
     paises_1 = [data.comite_1_pais_0, data.comite_1_pais_1, data.comite_1_pais_2]
     if len(paises_1) != len(set(paises_1)):
-        raise ValueError("Opciones de delegación repetidas.")
+        raise_validation_error(request_id, "Opciones de delegación repetidas.", comite=data.comite_1, opciones=paises_1)
     
     paises_2 = [data.comite_2_pais_0, data.comite_2_pais_1, data.comite_2_pais_2]
     if len(paises_2) != len(set(paises_2)):
-        raise ValueError("Opciones de delegación repetidas.")
+        raise_validation_error(request_id, "Opciones de delegación repetidas.", comite=data.comite_2, opciones=paises_2)
 
     es_codelegacion = data.modalidad == "pareja"
     
     # Validar edades
     if not 11 <= int(data.edad_0) <= 26 or (es_codelegacion and (data.edad_1 is None or not 11 <= int(data.edad_1) <= 26)):
-        raise ValueError("Edad inválida.")
+        raise_validation_error(request_id, "Edad inválida.", edad_0=data.edad_0, edad_1=data.edad_1, modalidad=data.modalidad)
 
     # Validar datos de codelegación obligatorios
     if es_codelegacion:
@@ -269,7 +392,7 @@ async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFil
             data.relacion_contacto_1,
         ]
         if any(item is None or str(item).strip() == "" for item in requeridos):
-            raise ValueError("Faltan datos de la codelegación.")
+            raise_validation_error(request_id, "Faltan datos de la codelegación.")
 
     # Validar tipos no permitidos en codelegación
     if es_codelegacion:
@@ -288,10 +411,12 @@ async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFil
         for comite_siglas, valor in delegaciones_seleccionadas:
             if not valor:
                 continue
+            if ":" not in valor:
+                raise_validation_error(request_id, "Delegación inválida.", comite=comite_siglas, valor=valor)
             _, delegacion_nombre = parse_delegacion(valor)
             tipo = obtener_tipo_delegacion(comite_siglas, delegacion_nombre)
             if tipo in TIPOS_SOLO_INDIVIDUAL:
-                raise ValueError("Delegación no disponible para codelegación.")
+                raise_validation_error(request_id, "Delegación no disponible para codelegación.", comite=comite_siglas, delegacion=delegacion_nombre, tipo=tipo)
 
     # Crear documento para Firestore
     delegacion_oficial = {
@@ -370,6 +495,12 @@ async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFil
     # Crear documento en base de datos
     doc_ref = db_collection.document()
     doc_ref_id = doc_ref.id
+    log_info(
+        "delegaciones_created_document",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+    )
 
     # Subir comprobante a Cloud Storage
     mime_type = mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
@@ -378,7 +509,28 @@ async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFil
 
     blob = comprobantes_bucket.blob(blob_name)
     comprobante.file.seek(0)
-    blob.upload_from_file(comprobante.file, content_type=mime_type)
+    try:
+        blob.upload_from_file(comprobante.file, content_type=mime_type)
+        log_info(
+            "upload_succeeded",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+            content_type=mime_type,
+            size_bytes=comprobante.size,
+            extension=extension,
+        )
+    except Exception:
+        log_exception(
+            "upload_failed",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+            content_type=mime_type,
+            size_bytes=comprobante.size,
+            extension=extension,
+        )
+        raise
 
     await comprobante.close()
 
@@ -393,38 +545,83 @@ async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFil
 
         "data": data_obj
     })
+    log_info(
+        "firestore_write_succeeded",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+    )
 
     # Publicar evento
     try:
-        future = publisher.publish(
+        publisher.publish(
             topic_path,
-            json.dumps({"submission_id": doc_ref_id}).encode("utf-8")
+            json.dumps(
+                {
+                    "submission_id": doc_ref_id,
+                    "request_id": request_id,
+                    "submission_type": submission_type,
+                }
+            ).encode("utf-8")
         )
-        future.result()
+        log_info(
+            "delegaciones_published_event",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+        )
     except Exception:
+        log_exception(
+            "delegaciones_publish_failed",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+        )
         raise ValueError("Error procesando la inscripción.")
 
+    log_info(
+        "delegaciones_completed",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+    )
+    log_info(
+        "delegaciones_terminal_success",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+        final_status="completed",
+    )
     # Redirigir a página de confirmación
     return RedirectResponse(f"{URL_BASE}/registro/confirmacion/", status_code=status.HTTP_303_SEE_OTHER)
 
 @router.post("/registro/faculty")
 async def registrar_faculty(request: Request, data: FacultyFormData = Depends(), comprobante: UploadFile = File(...)):
+    request_id = getattr(request.state, "request_id", str(uuid4()))
+    submission_type = "faculty"
+    log_info("faculty_start", request_id=request_id, numero_delegaciones=data.numero_delegaciones)
+
     # Validar archivo
     if comprobante.content_type is None or comprobante.size is None:
-        raise ValueError("No se envió la imagen.")
+        raise_validation_error(request_id, "No se envió la imagen.")
 
     if not (comprobante.content_type.startswith("image/") or comprobante.content_type == "application/pdf") or comprobante.size > 5242880:
-        raise ValueError("Imagen inválida.")
+        raise_validation_error(request_id, "Imagen inválida.", content_type=comprobante.content_type, size=comprobante.size)
 
     if int(data.numero_delegaciones) < 4:
-        raise ValueError("Número de delegaciones inválido.")
+        raise_validation_error(request_id, "Número de delegaciones inválido.", numero_delegaciones=data.numero_delegaciones)
 
     # Obtener datos de delegaciones
     form = await request.form()
     delegaciones = parse_delegaciones_faculty(form, int(data.numero_delegaciones))
 
     if len(delegaciones) != int(data.numero_delegaciones):
-        raise ValueError("Número de delegaciones no coincide.")
+        raise_validation_error(
+            request_id,
+            "Número de delegaciones no coincide.",
+            esperado=int(data.numero_delegaciones),
+            recibido=len(delegaciones),
+        )
 
     # Crear documento para Firestore
     data_obj = {
@@ -447,6 +644,12 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
     # Crear documento en base de datos
     doc_ref = db_collection.document()
     doc_ref_id = doc_ref.id
+    log_info(
+        "faculty_created_document",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+    )
 
     # Subir comprobante a Cloud Storage
     mime_type = mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
@@ -455,7 +658,28 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
 
     blob = comprobantes_bucket.blob(blob_name)
     comprobante.file.seek(0)
-    blob.upload_from_file(comprobante.file, content_type=mime_type)
+    try:
+        blob.upload_from_file(comprobante.file, content_type=mime_type)
+        log_info(
+            "upload_succeeded",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+            content_type=mime_type,
+            size_bytes=comprobante.size,
+            extension=extension,
+        )
+    except Exception:
+        log_exception(
+            "upload_failed",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+            content_type=mime_type,
+            size_bytes=comprobante.size,
+            extension=extension,
+        )
+        raise
 
     await comprobante.close()
 
@@ -470,17 +694,53 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
 
         "data": data_obj
     })
+    log_info(
+        "firestore_write_succeeded",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+    )
 
     # Publicar evento
     try:
-        future = publisher.publish(
+        publisher.publish(
             topic_path,
-            json.dumps({"submission_id": doc_ref_id}).encode("utf-8")
+            json.dumps(
+                {
+                    "submission_id": doc_ref_id,
+                    "request_id": request_id,
+                    "submission_type": submission_type,
+                }
+            ).encode("utf-8")
         )
-        future.result()
+        log_info(
+            "faculty_published_event",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+        )
     except Exception:
+        log_exception(
+            "faculty_publish_failed",
+            request_id=request_id,
+            submission_id=doc_ref_id,
+            submission_type=submission_type,
+        )
         raise ValueError("Error procesando la inscripción.")
 
+    log_info(
+        "faculty_completed",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+    )
+    log_info(
+        "faculty_terminal_success",
+        request_id=request_id,
+        submission_id=doc_ref_id,
+        submission_type=submission_type,
+        final_status="completed",
+    )
     # Redirigir a página de confirmación
     return RedirectResponse(f"{URL_BASE}/registro/confirmacion/", status_code=status.HTTP_303_SEE_OTHER)
 
