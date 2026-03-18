@@ -10,7 +10,7 @@ resource "google_storage_bucket" "functions_source" {
 resource "google_storage_bucket_object" "worker_zip" {
   name   = "worker.zip"
   bucket = google_storage_bucket.functions_source.name
-  source = "${path.module}/../worker.zip"
+  source = "${path.module}/worker.zip"
 }
 
 # Cloud Run functions worker resource
