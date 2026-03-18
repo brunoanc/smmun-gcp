@@ -1,0 +1,931 @@
+<mjml>
+    <mj-head>
+        <mj-attributes>
+            <mj-text
+                align="center"
+                color="#555"
+                font-family="Helvetica, Arial"
+                font-size="14px"
+            />
+
+            <mj-column padding="0 14px" />
+        </mj-attributes>
+    </mj-head>
+
+    <mj-body background-color="#eee">
+        <mj-hero
+            background-width="600px"
+            background-url="https://smmun.com/assets/img/email/header.png"
+            background-color="#ea6880"
+            padding="12% 0"
+        >
+        </mj-hero>
+
+        <mj-section background-color="#fff">
+            <mj-column>
+                <mj-text align="left">
+                    <h1>¡Muchas gracias!</h1>
+                    Hemos recibido tu inscripción. Te haremos llegar
+                    próximamente tu asignación y otra información importante,
+                    así que estate pendiente de tu correo.
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-text font-weight="bold" padding="15px 0">
+                    Modalidad
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Modalidad
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿tipo_delegacion??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-text font-weight="bold" padding="15px 0">
+                    Delegación oficial
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Delegación oficial
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿do_texto??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Responsable
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿responsable_do??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-text font-weight="bold" padding="15px 0">
+                    Datos personales
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Nombre completo
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿nombre?? ¿¿apellido??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Edad
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0"> ¿¿edad?? </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Número de celular
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿celular??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Correo electrónico
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0"> ¿¿correo?? </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Lugar de residencia
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿ciudad_estado??, ¿¿pais??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Escolaridad
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿escolaridad??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Escuela de procedencia
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿escuela??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Contacto de emergencia
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿contacto_emergencia??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Información extra
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿info_extra??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-text font-weight="bold" padding="15px 0">
+                    Primera opción de comité
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Comité
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_1_largo??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Primera opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_1_opcion_1??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Segunda opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_1_opcion_2??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Tercera opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_1_opcion_3??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-text font-weight="bold" padding="15px 0">
+                    Segunda opción de comité
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Comité
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_2_largo??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Primera opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_2_opcion_1??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Segunda opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_2_opcion_2??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Tercera opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_2_opcion_3??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-text font-weight="bold" padding="15px 0">
+                    Tercera opción de comité
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Comité
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_3_largo??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Primera opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_3_opcion_1??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Segunda opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_3_opcion_2??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-group>
+                <mj-column
+                    border-right="1px dashed lightgrey"
+                    width="40%"
+                    vertical-align="middle"
+                >
+                    <mj-text font-weight="bold" padding="15px 0">
+                        Tercera opción
+                    </mj-text>
+                </mj-column>
+
+                <mj-column width="60%" vertical-align="middle">
+                    <mj-text padding="15px 0">
+                        ¿¿comite_3_opcion_3??
+                    </mj-text>
+                </mj-column>
+            </mj-group>
+        </mj-section>
+
+        <mj-section background-color="#fff" padding="0 25px">
+            <mj-column>
+                <mj-divider
+                    border-width="1px"
+                    border-style="dashed"
+                    border-color="lightgrey"
+                    padding="0"
+                />
+            </mj-column>
+        </mj-section>
+
+        <mj-section background-color="#fff">
+            <mj-column>
+                <mj-button
+                    background-color="#ea6880"
+                    color="white"
+                    href="https://wa.me/529999033025?text=Hola%20%F0%9F%98%81,%20mi%20*nombre*%20es:%0A%0A*Tengo%20dudas%20sobre:*%0A%5B%5D%20%F0%9F%92%BC%20Modalidad%20de%20participaci%C3%B3n%0A%5B%5D%20%F0%9F%A4%9D%20Delegaci%C3%B3n%20oficial%0A%5B%5D%20%F0%9F%91%A4%20Datos%20personales%0A%5B%5D%20%F0%9F%8C%8E%20Comit%C3%A9s%20y/o%20pa%C3%ADses%0A%5B%5D%20%F0%9F%92%B3%20Proceso%20de%20pago%0A"
+                >
+                    ¿Dudas? ¡Contáctanos!
+                </mj-button>
+            </mj-column>
+        </mj-section>
+
+        <mj-section>
+            <mj-column>
+                <mj-text line-height="16px">
+                    Modelo de Naciones Unidas del Sureste Mexicano (SMMUN®)
+                    2026
+                    <br />
+                    Instagram:
+                    <a href="https://www.instagram.com/smmunoficial/"
+                        >@smmunoficial</a
+                    >
+                    <br />
+                    Facebook:
+                    <a href="https://www.facebook.com/smmunoficial">SMMUN</a>
+                    <br />
+                    Web: <a href="https://smmun.com">https://smmun.com</a>
+                </mj-text>
+            </mj-column>
+        </mj-section>
+    </mj-body>
+</mjml>

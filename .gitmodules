@@ -1,0 +1,3 @@
+[submodule "front/smmun-svelte"]
+	path = front/smmun-svelte
+	url = https://github.com/SMMUN0/smmun0.github.io.git

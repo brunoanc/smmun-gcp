@@ -1,0 +1,10 @@
+{
+  "hosting": {
+    "public": "smmun-svelte/build",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}
