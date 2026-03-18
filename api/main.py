@@ -374,7 +374,7 @@ async def registrar(data: DelegacionFormData = Depends(), comprobante: UploadFil
     # Subir comprobante a Cloud Storage
     mime_type = mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
     extension = mimetypes.guess_extension(mime_type) or ".bin"
-    blob_name = f"uploads/delegaciones/xd{'CODELEGACION' if es_codelegacion else 'DELEGACION'}_{data.nombre_0}_{data.apellido_0}_{doc_ref_id}{extension}"
+    blob_name = f"uploads/delegaciones/{'CODELEGACION' if es_codelegacion else 'DELEGACION'}_{data.nombre_0}_{data.apellido_0}_{doc_ref_id}{extension}"
 
     blob = comprobantes_bucket.blob(blob_name)
     comprobante.file.seek(0)
