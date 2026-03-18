@@ -5,6 +5,7 @@ from google.auth.transport.requests import Request as TransportRequest
 from google.cloud import storage, firestore
 from datetime import timedelta
 import functions_framework
+import logging
 import os
 import pathlib
 import time
@@ -12,9 +13,39 @@ import json
 import resend
 import base64
 import io
+from uuid import uuid4
+import traceback
+
+# Logging
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(message)s"
+)
+logger = logging.getLogger(__name__)
+LOG_COMPONENT = "worker"
+
+
+def _to_json_log(event: str, severity: str, **fields) -> str:
+    request_id = fields.get("request_id")
+    payload = {"severity": severity, "event": event, "component": LOG_COMPONENT, **fields}
+    if request_id:
+        payload["logging.googleapis.com/trace"] = f"projects/{PROJECT_ID}/traces/{request_id}"
+    return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def log_info(event: str, **fields):
+    logger.info(_to_json_log(event, "INFO", **fields))
+
+
+def log_warning(event: str, **fields):
+    logger.warning(_to_json_log(event, "WARNING", **fields))
+
+
+def log_exception(event: str, **fields):
+    logger.error(_to_json_log(event, "ERROR", error=traceback.format_exc(), **fields))
 
 # Credenciales Google Sheets API
-google_credentials, _ = default()
+google_credentials, PROJECT_ID = default()
 sheets_service = build("sheets", "v4", credentials=google_credentials)
 
 # Credenciales Resend API
@@ -84,8 +115,10 @@ def cell(value):
     return {"userEnteredValue": {"stringValue": str(value)}}
 
 
-def manejar_inscripcion(data: dict):
+def manejar_inscripcion(data: dict, request_id: str):
     inscripcion = data["data"]
+    submission_type = "delegacion"
+    log_info("delegacion_processing_started", request_id=request_id, submission_type=submission_type)
 
     # Obtener link temporal a comprobante
     comprobante_path = data["file_path"]
@@ -161,21 +194,21 @@ def manejar_inscripcion(data: dict):
         "requests": [
             {
                 "appendCells": {
-                    "tableId": "1509385248",
+                    "tableId": os.environ["DELEGACIONES_TABLE_ID"],
                     "rows": [
                         {
                             "values": [cell(v) for v in row_values]
                         }
                     ],
                     "fields": "*",
-                    "sheetId": "1743848330"
+                    "sheetId": os.environ["DELEGACIONES_SHEET_ID"]
                 }
             }
         ]
     }
 
     sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId="10V54CqKaXQFwFsFkw0eBpXSDH-MhZ1pXwKJYB1rJoC4",
+        spreadsheetId=os.environ["DELEGACIONES_SPREADSHEET_ID"],
         body=append_cells_request
     ).execute()
 
@@ -275,10 +308,18 @@ def manejar_inscripcion(data: dict):
         "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
         "html": html,
     })
+    log_info(
+        "delegacion_processing_finished",
+        request_id=request_id,
+        submission_type=submission_type,
+        recipients=len(destinatarios),
+    )
 
 
-def manejar_inscripcion_faculty(data: dict):
+def manejar_inscripcion_faculty(data: dict, request_id: str):
     inscripcion = data["data"]
+    submission_type = "faculty"
+    log_info("faculty_processing_started", request_id=request_id, submission_type=submission_type)
 
     # Obtener link temporal a comprobante
     comprobante_path = data["file_path"]
@@ -307,7 +348,7 @@ def manejar_inscripcion_faculty(data: dict):
         ]
     }
 
-    sheets_service.spreadsheets().batchUpdate(spreadsheetId="118vacPNUVHQ2OmEWYsL9qSPxkdrvMTscn2kQRGlNDAE", body=body).execute()
+    sheets_service.spreadsheets().batchUpdate(spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=body).execute()
 
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
@@ -331,21 +372,21 @@ def manejar_inscripcion_faculty(data: dict):
         "requests": [
             {
                 "appendCells": {
-                    "tableId": "2079575764",
+                    "tableId": os.environ["FACULTY_GENERAL_TABLE_ID"],
                     "rows": [
                         {
                             "values": [cell(v) for v in row_values]
                         }
                     ],
                     "fields": "*",
-                    "sheetId": "0"
+                    "sheetId": os.environ["FACULTY_GENERAL_SHEET_ID"]
                 }
             }
         ]
     }
 
     sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId="118vacPNUVHQ2OmEWYsL9qSPxkdrvMTscn2kQRGlNDAE",
+        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
         body=append_cells_request
     ).execute()
 
@@ -428,7 +469,7 @@ def manejar_inscripcion_faculty(data: dict):
         })
 
     sheets_service.spreadsheets().values().append(
-        spreadsheetId="118vacPNUVHQ2OmEWYsL9qSPxkdrvMTscn2kQRGlNDAE",
+        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
         range=f"{title}!A:A",
         valueInputOption="USER_ENTERED",
         body=body
@@ -438,17 +479,17 @@ def manejar_inscripcion_faculty(data: dict):
         "requests": [
             {
                 "appendCells": {
-                    "tableId": "1297311155",
+                    "tableId": os.environ["FACULTY_DELEGACIONES_TABLE_ID"],
                     "rows": delegaciones,
                     "fields": "*",
-                    "sheetId": "399805608"
+                    "sheetId": os.environ["FACULTY_DELEGACIONES_SHEET_ID"]
                 }
             }
         ]
     }
 
     sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId="118vacPNUVHQ2OmEWYsL9qSPxkdrvMTscn2kQRGlNDAE",
+        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
         body=append_cells_request
     ).execute()
 
@@ -476,6 +517,7 @@ def manejar_inscripcion_faculty(data: dict):
         "subject": f"FACULTY: {inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
         "html": html
     })
+    log_info("faculty_processing_finished", request_id=request_id, submission_type=submission_type)
 
 
 def claim_submission(doc_ref):
@@ -496,8 +538,13 @@ def claim_submission(doc_ref):
 
 
 # Procesar evento (inscripcion)
-def process_submission(submission_id: str):
-    print(f"Processing submission {submission_id}")
+def process_submission(submission_id: str, request_id: str, submission_type: str | None = None):
+    log_info(
+        "submission_processing_started",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+    )
 
     google_credentials.refresh(TransportRequest())
 
@@ -506,22 +553,53 @@ def process_submission(submission_id: str):
     try:
         # Idempotencia
         if not claim_submission(doc_ref):
+            log_info(
+                "submission_skipped",
+                request_id=request_id,
+                submission_id=submission_id,
+                submission_type=submission_type,
+                reason="already_processing_or_completed",
+            )
             return
 
         data = doc_ref.get().to_dict()
-        print(f"Type: {data.get('type')}")
+        submission_type = data.get("type")
+        log_info(
+            "submission_type_detected",
+            request_id=request_id,
+            submission_id=submission_id,
+            submission_type=submission_type,
+        )
 
-        if data["type"] == "delegacion":
-            manejar_inscripcion(data)
+        if submission_type == "delegacion":
+            manejar_inscripcion(data, request_id)
         else:
-            manejar_inscripcion_faculty(data)
+            manejar_inscripcion_faculty(data, request_id)
 
         doc_ref.update({
             "status": "completed"
         })
+        log_info(
+            "submission_processing_finished",
+            request_id=request_id,
+            submission_id=submission_id,
+            submission_type=submission_type,
+        )
+        log_info(
+            "submission_terminal_success",
+            request_id=request_id,
+            submission_id=submission_id,
+            submission_type=submission_type,
+            final_status="completed",
+        )
 
     except Exception as e:
-        print(f"Error: {e}")
+        log_exception(
+            "submission_processing_failed",
+            request_id=request_id,
+            submission_id=submission_id,
+            submission_type=submission_type,
+        )
 
         doc_ref.update({
             "status": "failed",
@@ -534,9 +612,18 @@ def pubsub_handler(cloud_event):
     encoded_data = cloud_event.data["message"]["data"]
 
     if not encoded_data:
+        log_warning("pubsub_message_missing_data")
         return
 
     decoded = json.loads(base64.b64decode(encoded_data).decode("utf-8"))
     submission_id = decoded["submission_id"]
+    request_id = decoded.get("request_id") or str(uuid4())
+    submission_type = decoded.get("submission_type")
 
-    process_submission(submission_id)
+    log_info(
+        "pubsub_message_received",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+    )
+    process_submission(submission_id, request_id, submission_type)

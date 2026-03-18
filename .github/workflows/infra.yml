@@ -55,7 +55,19 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -var="project_id=${{ vars.GCP_PROJECT_ID }}" -var="api_domain=${{ vars.API_DOMAIN }}" -out=tfplan
+        run: |
+          terraform plan \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="api_domain=${{ vars.API_DOMAIN }}" \
+            -var="delegaciones_spreadsheet_id=10V54CqKaXQFwFsFkw0eBpXSDH-MhZ1pXwKJYB1rJoC4" \
+            -var="delegaciones_sheet_id=1743848330" \
+            -var="delegaciones_table_id=1509385248" \
+            -var="faculty_spreadsheet_id=118vacPNUVHQ2OmEWYsL9qSPxkdrvMTscn2kQRGlNDAE" \
+            -var="faculty_general_sheet_id=0" \
+            -var="faculty_general_table_id=2079575764" \
+            -var="faculty_delegaciones_sheet_id=399805608" \
+            -var="faculty_delegaciones_table_id=1297311155" \
+            -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

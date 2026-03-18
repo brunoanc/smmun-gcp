@@ -45,3 +45,35 @@ variable "worker_function_name" {
   type    = string
   default = "smmun-worker-function"
 }
+
+variable "delegaciones_spreadsheet_id" {
+  type    = string
+}
+
+variable "delegaciones_sheet_id" {
+  type    = string
+}
+
+variable "delegaciones_table_id" {
+  type    = string
+}
+
+variable "faculty_spreadsheet_id" {
+  type    = string
+}
+
+variable "faculty_general_sheet_id" {
+  type    = string
+}
+
+variable "faculty_general_table_id" {
+  type    = string
+}
+
+variable "faculty_delegaciones_sheet_id" {
+  type    = string
+}
+
+variable "faculty_delegaciones_table_id" {
+  type    = string
+}

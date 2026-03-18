@@ -36,8 +36,16 @@ resource "google_cloudfunctions2_function" "worker" {
     timeout_seconds       = 60
 
     environment_variables = {
-      FIRESTORE_COLLECTION_NAME = var.firestore_collection_name
-      COMPROBANTES_BUCKET_NAME  = google_storage_bucket.comprobantes.name
+      FIRESTORE_COLLECTION_NAME     = var.firestore_collection_name
+      COMPROBANTES_BUCKET_NAME      = google_storage_bucket.comprobantes.name
+      DELEGACIONES_SPREADSHEET_ID   = var.delegaciones_spreadsheet_id
+      DELEGACIONES_SHEET_ID         = var.delegaciones_sheet_id
+      DELEGACIONES_TABLE_ID         = var.delegaciones_table_id
+      FACULTY_SPREADSHEET_ID        = var.faculty_spreadsheet_id
+      FACULTY_GENERAL_SHEET_ID      = var.faculty_general_sheet_id
+      FACULTY_GENERAL_TABLE_ID      = var.faculty_general_table_id
+      FACULTY_DELEGACIONES_SHEET_ID = var.faculty_delegaciones_sheet_id
+      FACULTY_DELEGACIONES_TABLE_ID = var.faculty_delegaciones_table_id
     }
 
     secret_environment_variables {
