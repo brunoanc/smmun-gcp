@@ -45,3 +45,4 @@ terraform.rc
 
 .venv
 __pycache__
+.firebase
