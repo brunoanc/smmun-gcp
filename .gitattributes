@@ -1,0 +1,2 @@
+worker/email/** linguist-vendored
+worker/email_templates/** linguist-vendored
