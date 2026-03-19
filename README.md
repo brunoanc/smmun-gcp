@@ -1,5 +1,10 @@
 # SMMUN website and registration system
 
+![GCP](https://img.shields.io/badge/Cloud-GCP-blue)
+![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)
+![Python](https://img.shields.io/badge/Language-Python-yellow)
+![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC)
+
 [🌐 smmun.com](https://smmun.com)
 
 Cloud-native, event-driven backend for handling conference registrations on Google Cloud Platform.
@@ -35,11 +40,6 @@ Cloud-native, event-driven backend for handling conference registrations on Goog
 ---
 
 ## Stack
-
-![GCP](https://img.shields.io/badge/Cloud-GCP-blue)
-![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)
-![Python](https://img.shields.io/badge/Language-Python-yellow)
-![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC)
 
 **GCP**
 - Cloud Run
