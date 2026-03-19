@@ -17,19 +17,23 @@ from uuid import uuid4
 import traceback
 
 # Logging
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
-    format="%(message)s"
-)
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(), format="%(message)s")
 logger = logging.getLogger(__name__)
 LOG_COMPONENT = "worker"
 
 
 def _to_json_log(event: str, severity: str, **fields) -> str:
     request_id = fields.get("request_id")
-    payload = {"severity": severity, "event": event, "component": LOG_COMPONENT, **fields}
+    payload = {
+        "severity": severity,
+        "event": event,
+        "component": LOG_COMPONENT,
+        **fields,
+    }
     if request_id:
-        payload["logging.googleapis.com/trace"] = f"projects/{PROJECT_ID}/traces/{request_id}"
+        payload["logging.googleapis.com/trace"] = (
+            f"projects/{PROJECT_ID}/traces/{request_id}"
+        )
     return json.dumps(payload, ensure_ascii=False, default=str)
 
 
@@ -43,6 +47,7 @@ def log_warning(event: str, **fields):
 
 def log_exception(event: str, **fields):
     logger.error(_to_json_log(event, "ERROR", error=traceback.format_exc(), **fields))
+
 
 # Credenciales Google Sheets API
 google_credentials, PROJECT_ID = default()
@@ -63,7 +68,11 @@ comprobantes_bucket = storage_client.bucket(COMPROBANTES_BUCKET_NAME)
 
 
 # HTML y archivos adjuntos de correos para enviar (plantillas de prueba)
-with open("email/codelegacion.html", "r", encoding="utf-8") as co, open("email/delegacion.html", "r", encoding="utf-8") as dg, open("email/faculty.html", encoding="utf-8") as fac:
+with (
+    open("email/codelegacion.html", "r", encoding="utf-8") as co,
+    open("email/delegacion.html", "r", encoding="utf-8") as dg,
+    open("email/faculty.html", encoding="utf-8") as fac,
+):
     html_emails = {
         "codelegacion": co.read(),
         "delegacion": dg.read(),
@@ -76,7 +85,9 @@ def comite_corto_a_largo(comite):
         case "SOCHUM":
             return "Tercera Comisión de la Asamblea General referente a lo Social, Cultural, Humanitario y de Derechos Humanos (SOCHUM)"
         case "ONU SIDA":
-            return "Programa Conjunto de las Naciones Unidas para el VIH-SIDA (ONU SIDA)"
+            return (
+                "Programa Conjunto de las Naciones Unidas para el VIH-SIDA (ONU SIDA)"
+            )
         case "ONU-Hábitat":
             return "Programa de las Naciones Unidas para los Asentamientos Humanos (ONU-Hábitat)"
         case "CCPCJ":
@@ -118,7 +129,11 @@ def cell(value):
 def manejar_inscripcion(data: dict, request_id: str):
     inscripcion = data["data"]
     submission_type = "delegacion"
-    log_info("delegacion_processing_started", request_id=request_id, submission_type=submission_type)
+    log_info(
+        "delegacion_processing_started",
+        request_id=request_id,
+        submission_type=submission_type,
+    )
 
     # Obtener link temporal a comprobante
     comprobante_path = data["file_path"]
@@ -128,12 +143,16 @@ def manejar_inscripcion(data: dict, request_id: str):
         method="GET",
         version="v4",
         service_account_email=google_credentials.service_account_email,
-        access_token=google_credentials.token
+        access_token=google_credentials.token,
     )
 
     codelegacion = inscripcion["modalidad"] == "pareja"
     p1 = inscripcion["participantes"][0]
-    p2 = inscripcion["participantes"][1] if codelegacion and len(inscripcion["participantes"]) > 1 else {}
+    p2 = (
+        inscripcion["participantes"][1]
+        if codelegacion and len(inscripcion["participantes"]) > 1
+        else {}
+    )
 
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
@@ -141,13 +160,10 @@ def manejar_inscripcion(data: dict, request_id: str):
     # Añadir al sheets de inscripciones
     row_values = [
         False,
-
         fecha_str,
-
         codelegacion,
         inscripcion.get("delegacion_oficial", {}).get("nombre"),
         inscripcion.get("delegacion_oficial", {}).get("responsable"),
-
         p1.get("nombre"),
         p1.get("apellido"),
         p1.get("edad"),
@@ -159,7 +175,6 @@ def manejar_inscripcion(data: dict, request_id: str):
         p1.get("escuela"),
         p1.get("contacto_emergencia"),
         p1.get("info_extra"),
-
         p2.get("nombre"),
         p2.get("apellido"),
         p2.get("edad"),
@@ -171,23 +186,31 @@ def manejar_inscripcion(data: dict, request_id: str):
         p2.get("escuela"),
         p2.get("contacto_emergencia"),
         p2.get("info_extra"),
-
         inscripcion["comites"][0]["nombre"],
         inscripcion["comites"][0]["opciones"][0],
         inscripcion["comites"][0]["opciones"][1],
-        inscripcion["comites"][0]["opciones"][2] if len(inscripcion["comites"][0]["opciones"]) > 2 else None,
-
+        (
+            inscripcion["comites"][0]["opciones"][2]
+            if len(inscripcion["comites"][0]["opciones"]) > 2
+            else None
+        ),
         inscripcion["comites"][1]["nombre"],
         inscripcion["comites"][1]["opciones"][0],
         inscripcion["comites"][1]["opciones"][1],
-        inscripcion["comites"][1]["opciones"][2] if len(inscripcion["comites"][1]["opciones"]) > 2 else None,
-
+        (
+            inscripcion["comites"][1]["opciones"][2]
+            if len(inscripcion["comites"][1]["opciones"]) > 2
+            else None
+        ),
         inscripcion["comites"][2]["nombre"],
         inscripcion["comites"][2]["opciones"][0],
         inscripcion["comites"][2]["opciones"][1],
-        inscripcion["comites"][2]["opciones"][2] if len(inscripcion["comites"][2]["opciones"]) > 2 else None,
-
-        url
+        (
+            inscripcion["comites"][2]["opciones"][2]
+            if len(inscripcion["comites"][2]["opciones"]) > 2
+            else None
+        ),
+        url,
     ]
 
     append_cells_request = {
@@ -195,13 +218,9 @@ def manejar_inscripcion(data: dict, request_id: str):
             {
                 "appendCells": {
                     "tableId": os.environ["DELEGACIONES_TABLE_ID"],
-                    "rows": [
-                        {
-                            "values": [cell(v) for v in row_values]
-                        }
-                    ],
+                    "rows": [{"values": [cell(v) for v in row_values]}],
                     "fields": "*",
-                    "sheetId": os.environ["DELEGACIONES_SHEET_ID"]
+                    "sheetId": os.environ["DELEGACIONES_SHEET_ID"],
                 }
             }
         ]
@@ -209,7 +228,7 @@ def manejar_inscripcion(data: dict, request_id: str):
 
     sheets_service.spreadsheets().batchUpdate(
         spreadsheetId=os.environ["DELEGACIONES_SPREADSHEET_ID"],
-        body=append_cells_request
+        body=append_cells_request,
     ).execute()
 
     # Mandar correo
@@ -220,15 +239,22 @@ def manejar_inscripcion(data: dict, request_id: str):
     comite_3_largo = comite_corto_a_largo(inscripcion["comites"][2]["nombre"])
 
     tipo_delegacion = "Codelegación" if codelegacion else "Delegación individual"
-    do_texto = inscripcion.get("delegacion_oficial", {}).get("nombre") if inscripcion.get("delegacion_oficial", {}).get("is_oficial") else "No"
-    responsable_do = inscripcion.get("delegacion_oficial", {}).get("responsable") if inscripcion.get("delegacion_oficial", {}).get("is_oficial") else "No aplica"
+    do_texto = (
+        inscripcion.get("delegacion_oficial", {}).get("nombre")
+        if inscripcion.get("delegacion_oficial", {}).get("is_oficial")
+        else "No"
+    )
+    responsable_do = (
+        inscripcion.get("delegacion_oficial", {}).get("responsable")
+        if inscripcion.get("delegacion_oficial", {}).get("is_oficial")
+        else "No aplica"
+    )
 
     if codelegacion:
         html = html_emails["codelegacion"].format(
             tipo_delegacion=tipo_delegacion,
             do_texto=do_texto,
             responsable_do=responsable_do,
-
             nombre=p1.get("nombre"),
             apellido=p1.get("apellido"),
             edad=p1.get("edad"),
@@ -240,7 +266,6 @@ def manejar_inscripcion(data: dict, request_id: str):
             escuela=p1.get("escuela"),
             contacto_emergencia=p1.get("contacto_emergencia"),
             info_extra=p1.get("info_extra"),
-
             nombre_co=p2.get("nombre"),
             apellido_co=p2.get("apellido"),
             edad_co=p2.get("edad"),
@@ -252,28 +277,24 @@ def manejar_inscripcion(data: dict, request_id: str):
             escuela_co=p2.get("escuela"),
             contacto_emergencia_co=p2.get("contacto_emergencia"),
             info_extra_co=p2.get("info_extra"),
-
             comite_1_largo=comite_1_largo,
             comite_1_opcion_1=inscripcion["comites"][0]["opciones"][0],
             comite_1_opcion_2=inscripcion["comites"][0]["opciones"][1],
             comite_1_opcion_3=inscripcion["comites"][0]["opciones"][2],
-
             comite_2_largo=comite_2_largo,
             comite_2_opcion_1=inscripcion["comites"][1]["opciones"][0],
             comite_2_opcion_2=inscripcion["comites"][1]["opciones"][1],
             comite_2_opcion_3=inscripcion["comites"][1]["opciones"][2],
-
             comite_3_largo=comite_3_largo,
             comite_3_opcion_1=inscripcion["comites"][2]["opciones"][0],
             comite_3_opcion_2=inscripcion["comites"][2]["opciones"][1],
-            comite_3_opcion_3=inscripcion["comites"][2]["opciones"][2]
+            comite_3_opcion_3=inscripcion["comites"][2]["opciones"][2],
         )
     else:
         html = html_emails["delegacion"].format(
             tipo_delegacion=tipo_delegacion,
             do_texto=do_texto,
             responsable_do=responsable_do,
-
             nombre=p1.get("nombre"),
             apellido=p1.get("apellido"),
             edad=p1.get("edad"),
@@ -285,29 +306,28 @@ def manejar_inscripcion(data: dict, request_id: str):
             escuela=p1.get("escuela"),
             contacto_emergencia=p1.get("contacto_emergencia"),
             info_extra=p1.get("info_extra"),
-
             comite_1_largo=comite_1_largo,
             comite_1_opcion_1=inscripcion["comites"][0]["opciones"][0],
             comite_1_opcion_2=inscripcion["comites"][0]["opciones"][1],
             comite_1_opcion_3=inscripcion["comites"][0]["opciones"][2],
-
             comite_2_largo=comite_2_largo,
             comite_2_opcion_1=inscripcion["comites"][1]["opciones"][0],
             comite_2_opcion_2=inscripcion["comites"][1]["opciones"][1],
             comite_2_opcion_3=inscripcion["comites"][1]["opciones"][2],
-
             comite_3_largo=comite_3_largo,
             comite_3_opcion_1=inscripcion["comites"][2]["opciones"][0],
             comite_3_opcion_2=inscripcion["comites"][2]["opciones"][1],
-            comite_3_opcion_3=inscripcion["comites"][2]["opciones"][2]
+            comite_3_opcion_3=inscripcion["comites"][2]["opciones"][2],
         )
 
-    resend.Emails.send({
-        "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
-        "to": destinatarios,
-        "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
-        "html": html,
-    })
+    resend.Emails.send(
+        {
+            "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
+            "to": destinatarios,
+            "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
+            "html": html,
+        }
+    )
     log_info(
         "delegacion_processing_finished",
         request_id=request_id,
@@ -319,7 +339,11 @@ def manejar_inscripcion(data: dict, request_id: str):
 def manejar_inscripcion_faculty(data: dict, request_id: str):
     inscripcion = data["data"]
     submission_type = "faculty"
-    log_info("faculty_processing_started", request_id=request_id, submission_type=submission_type)
+    log_info(
+        "faculty_processing_started",
+        request_id=request_id,
+        submission_type=submission_type,
+    )
 
     # Obtener link temporal a comprobante
     comprobante_path = data["file_path"]
@@ -329,26 +353,18 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
         method="GET",
         version="v4",
         service_account_email=google_credentials.service_account_email,
-        access_token=google_credentials.token
+        access_token=google_credentials.token,
     )
 
     timestamp = int(time.time())
 
     # Añadir nueva página al sheets
     title = f"{inscripcion['institucion']}_{timestamp}"
-    body = {
-        "requests": [
-            {
-                "addSheet": {
-                    "properties": {
-                        "title": title
-                    }
-                }
-            }
-        ]
-    }
+    body = {"requests": [{"addSheet": {"properties": {"title": title}}}]}
 
-    sheets_service.spreadsheets().batchUpdate(spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=body).execute()
+    sheets_service.spreadsheets().batchUpdate(
+        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=body
+    ).execute()
 
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
@@ -365,7 +381,7 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
         inscripcion["faculty"]["correo"],
         inscripcion["faculty"]["pais"],
         inscripcion["faculty"]["ciudad_estado"],
-        url
+        url,
     ]
 
     append_cells_request = {
@@ -373,21 +389,16 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
             {
                 "appendCells": {
                     "tableId": os.environ["FACULTY_GENERAL_TABLE_ID"],
-                    "rows": [
-                        {
-                            "values": [cell(v) for v in row_values]
-                        }
-                    ],
+                    "rows": [{"values": [cell(v) for v in row_values]}],
                     "fields": "*",
-                    "sheetId": os.environ["FACULTY_GENERAL_SHEET_ID"]
+                    "sheetId": os.environ["FACULTY_GENERAL_SHEET_ID"],
                 }
             }
         ]
     }
 
     sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
-        body=append_cells_request
+        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=append_cells_request
     ).execute()
 
     # Añadir valores al sheets
@@ -400,30 +411,15 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
                 "Nombre:",
                 f"{inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
             ],
-            [
-                "Celular:",
-                inscripcion["faculty"]["celular"]
-            ],
-            [
-                "Correo:",
-                inscripcion["faculty"]["correo"]
-            ],
+            ["Celular:", inscripcion["faculty"]["celular"]],
+            ["Correo:", inscripcion["faculty"]["correo"]],
             [
                 "Lugar de residencia:",
-                f"{inscripcion['faculty']['ciudad_estado']}, {inscripcion['faculty']['pais']}"
+                f"{inscripcion['faculty']['ciudad_estado']}, {inscripcion['faculty']['pais']}",
             ],
-            [
-                "Número de delegaciones:",
-                inscripcion["numero_delegaciones"]
-            ],
-            [
-                "Fecha de inscripción",
-                fecha_str
-            ],
-            [
-                "Comprobante de pago:",
-                url
-            ],
+            ["Número de delegaciones:", inscripcion["numero_delegaciones"]],
+            ["Fecha de inscripción", fecha_str],
+            ["Comprobante de pago:", url],
             [],
             [
                 "Nombre",
@@ -433,24 +429,26 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
                 "Correo",
                 "Lugar de residencia",
                 "Escolaridad",
-                "Escuela"
-            ]
+                "Escuela",
+            ],
         ]
     }
 
     delegaciones = []
 
     for i in range(inscripcion["numero_delegaciones"]):
-        body["values"].append([
-            inscripcion["delegaciones"][i].get("nombre"),
-            inscripcion["delegaciones"][i].get("apellido"),
-            inscripcion["delegaciones"][i].get("edad"),
-            inscripcion["delegaciones"][i].get("celular"),
-            inscripcion["delegaciones"][i].get("correo"),
-            f"{inscripcion['delegaciones'][i].get('ciudad_estado')}, {inscripcion['delegaciones'][i].get('pais')}",
-            inscripcion["delegaciones"][i].get("escolaridad"),
-            inscripcion["delegaciones"][i].get("escuela"),
-        ])
+        body["values"].append(
+            [
+                inscripcion["delegaciones"][i].get("nombre"),
+                inscripcion["delegaciones"][i].get("apellido"),
+                inscripcion["delegaciones"][i].get("edad"),
+                inscripcion["delegaciones"][i].get("celular"),
+                inscripcion["delegaciones"][i].get("correo"),
+                f"{inscripcion['delegaciones'][i].get('ciudad_estado')}, {inscripcion['delegaciones'][i].get('pais')}",
+                inscripcion["delegaciones"][i].get("escolaridad"),
+                inscripcion["delegaciones"][i].get("escuela"),
+            ]
+        )
 
         delegaciones_row = [
             inscripcion["institucion"],
@@ -464,15 +462,13 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
             inscripcion["delegaciones"][i].get("escuela"),
         ]
 
-        delegaciones.append({
-            "values": [cell(v) for v in delegaciones_row]
-        })
+        delegaciones.append({"values": [cell(v) for v in delegaciones_row]})
 
     sheets_service.spreadsheets().values().append(
         spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
         range=f"{title}!A:A",
         valueInputOption="USER_ENTERED",
-        body=body
+        body=body,
     ).execute()
 
     append_cells_request = {
@@ -482,15 +478,14 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
                     "tableId": os.environ["FACULTY_DELEGACIONES_TABLE_ID"],
                     "rows": delegaciones,
                     "fields": "*",
-                    "sheetId": os.environ["FACULTY_DELEGACIONES_SHEET_ID"]
+                    "sheetId": os.environ["FACULTY_DELEGACIONES_SHEET_ID"],
                 }
             }
         ]
     }
 
     sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
-        body=append_cells_request
+        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=append_cells_request
     ).execute()
 
     html = html_emails["faculty"].format(
@@ -501,23 +496,31 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
         celular_faculty=inscripcion["faculty"]["celular"],
         correo_faculty=inscripcion["faculty"]["correo"],
         ciudad_estado_faculty=inscripcion["faculty"]["ciudad_estado"],
-        pais_faculty=inscripcion["faculty"]["pais"]
+        pais_faculty=inscripcion["faculty"]["pais"],
     )
 
-    resend.Emails.send({
-        "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
-        "to": [inscripcion["faculty"]["correo"]],
-        "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
-        "html": html
-    })
+    resend.Emails.send(
+        {
+            "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
+            "to": [inscripcion["faculty"]["correo"]],
+            "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
+            "html": html,
+        }
+    )
 
-    resend.Emails.send({
-        "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
-        "to": "secretariadefinanzas@smmun.com",
-        "subject": f"FACULTY: {inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
-        "html": html
-    })
-    log_info("faculty_processing_finished", request_id=request_id, submission_type=submission_type)
+    resend.Emails.send(
+        {
+            "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
+            "to": "secretariadefinanzas@smmun.com",
+            "subject": f"FACULTY: {inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
+            "html": html,
+        }
+    )
+    log_info(
+        "faculty_processing_finished",
+        request_id=request_id,
+        submission_type=submission_type,
+    )
 
 
 def claim_submission(doc_ref):
@@ -538,7 +541,9 @@ def claim_submission(doc_ref):
 
 
 # Procesar evento (inscripcion)
-def process_submission(submission_id: str, request_id: str, submission_type: str | None = None):
+def process_submission(
+    submission_id: str, request_id: str, submission_type: str | None = None
+):
     log_info(
         "submission_processing_started",
         request_id=request_id,
@@ -548,7 +553,7 @@ def process_submission(submission_id: str, request_id: str, submission_type: str
 
     google_credentials.refresh(TransportRequest())
 
-    doc_ref = db_collection.document(submission_id)    
+    doc_ref = db_collection.document(submission_id)
 
     try:
         # Idempotencia
@@ -576,9 +581,7 @@ def process_submission(submission_id: str, request_id: str, submission_type: str
         else:
             manejar_inscripcion_faculty(data, request_id)
 
-        doc_ref.update({
-            "status": "completed"
-        })
+        doc_ref.update({"status": "completed"})
         log_info(
             "submission_processing_finished",
             request_id=request_id,
@@ -601,10 +604,7 @@ def process_submission(submission_id: str, request_id: str, submission_type: str
             submission_type=submission_type,
         )
 
-        doc_ref.update({
-            "status": "failed",
-            "error_message": str(e)
-        })
+        doc_ref.update({"status": "failed", "error_message": str(e)})
 
 
 @functions_framework.cloud_event

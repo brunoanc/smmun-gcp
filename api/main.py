@@ -19,7 +19,6 @@ import os
 import json
 import mimetypes
 
-
 # URL de la página estática
 URL_BASE = "https://smmun.com"
 
@@ -30,10 +29,7 @@ _, PROJECT_ID = default()
 PUB_SUB_TOPIC_NAME = os.environ["PUB_SUB_TOPIC_NAME"]
 
 # Logging
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
-    format="%(message)s"
-)
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(), format="%(message)s")
 logger = logging.getLogger(__name__)
 REQUEST_ID_HEADER = "X-Request-ID"
 LOG_COMPONENT = "api"
@@ -63,9 +59,16 @@ def _sanitize_context_value(value):
 
 def _to_json_log(event: str, severity: str, **fields) -> str:
     request_id = fields.get("request_id")
-    payload = {"severity": severity, "event": event, "component": LOG_COMPONENT, **fields}
+    payload = {
+        "severity": severity,
+        "event": event,
+        "component": LOG_COMPONENT,
+        **fields,
+    }
     if request_id:
-        payload["logging.googleapis.com/trace"] = f"projects/{PROJECT_ID}/traces/{request_id}"
+        payload["logging.googleapis.com/trace"] = (
+            f"projects/{PROJECT_ID}/traces/{request_id}"
+        )
     return json.dumps(payload, ensure_ascii=False, default=str)
 
 
@@ -79,6 +82,7 @@ def log_warning(event: str, **fields):
 
 def log_exception(event: str, **fields):
     logger.error(_to_json_log(event, "ERROR", error=traceback.format_exc(), **fields))
+
 
 # Lista de comités y tipos no permitidos en codelegación
 COMITES_VALIDOS = [
@@ -95,7 +99,12 @@ COMITES_VALIDOS = [
     "FHCM",
 ]
 
-TIPOS_SOLO_INDIVIDUAL = {"pilotos", "disenadores_emergentes", "astronautas", "representantes_nasa"}
+TIPOS_SOLO_INDIVIDUAL = {
+    "pilotos",
+    "disenadores_emergentes",
+    "astronautas",
+    "representantes_nasa",
+}
 COMITES_CON_TIPOS = {"fia", "fhcm", "nasa", "cumbre_futuro"}
 
 # Cargar delegaciones para validaciones cruzadas
@@ -118,7 +127,10 @@ class DelegacionFormData:
     correo_0: EmailStr = Form(max_length=150)
     pais_0: str = Form(max_length=150)
     ciudad_estado_0: str = Form(max_length=150)
-    escolaridad_0: str = Form(pattern=r"^(Secundaria|Preparatoria|Universidad|Egresado|No estudio)$", max_length=150)
+    escolaridad_0: str = Form(
+        pattern=r"^(Secundaria|Preparatoria|Universidad|Egresado|No estudio)$",
+        max_length=150,
+    )
     escuela_0: Optional[str] = Form(None, max_length=150)
     nombre_contacto_0: str = Form(max_length=150)
     celular_contacto_0: str = Form(max_length=30)
@@ -132,24 +144,34 @@ class DelegacionFormData:
     correo_1: Optional[EmailStr | str] = Form(None, max_length=150)
     pais_1: Optional[str] = Form(None, max_length=150)
     ciudad_estado_1: Optional[str] = Form(None, max_length=150)
-    escolaridad_1: Optional[str] = Form(None, pattern=r"^(|Secundaria|Preparatoria|Universidad|Egresado|No estudio)$", max_length=150)
+    escolaridad_1: Optional[str] = Form(
+        None,
+        pattern=r"^(|Secundaria|Preparatoria|Universidad|Egresado|No estudio)$",
+        max_length=150,
+    )
     escuela_1: Optional[str] = Form(None, max_length=150)
     nombre_contacto_1: Optional[str] = Form(None, max_length=150)
     celular_contacto_1: Optional[str] = Form(None, max_length=30)
     relacion_contacto_1: Optional[str] = Form(None, max_length=150)
     info_extra_1: Optional[str] = Form(None, max_length=150)
 
-    comite_0: str = Form(pattern=r"^(SOCHUM|ONU SIDA|ONU-Hábitat|CCPCJ|UNRWA|Cumbre|NASA|WWF|Crisis|FIA|FHCM)$")
+    comite_0: str = Form(
+        pattern=r"^(SOCHUM|ONU SIDA|ONU-Hábitat|CCPCJ|UNRWA|Cumbre|NASA|WWF|Crisis|FIA|FHCM)$"
+    )
     comite_0_pais_0: str = Form(max_length=150)
     comite_0_pais_1: str = Form(max_length=150)
     comite_0_pais_2: Optional[str] = Form(None, max_length=150)
 
-    comite_1: str = Form(pattern=r"^(SOCHUM|ONU SIDA|ONU-Hábitat|CCPCJ|UNRWA|Cumbre|NASA|WWF|Crisis|FIA|FHCM)$")
+    comite_1: str = Form(
+        pattern=r"^(SOCHUM|ONU SIDA|ONU-Hábitat|CCPCJ|UNRWA|Cumbre|NASA|WWF|Crisis|FIA|FHCM)$"
+    )
     comite_1_pais_0: str = Form(max_length=150)
     comite_1_pais_1: str = Form(max_length=150)
     comite_1_pais_2: Optional[str] = Form(None, max_length=150)
 
-    comite_2: str = Form(pattern=r"^(SOCHUM|ONU SIDA|ONU-Hábitat|CCPCJ|UNRWA|Cumbre|NASA|WWF|Crisis|FIA|FHCM)$")
+    comite_2: str = Form(
+        pattern=r"^(SOCHUM|ONU SIDA|ONU-Hábitat|CCPCJ|UNRWA|Cumbre|NASA|WWF|Crisis|FIA|FHCM)$"
+    )
     comite_2_pais_0: str = Form(max_length=150)
     comite_2_pais_1: str = Form(max_length=150)
     comite_2_pais_2: Optional[str] = Form(None, max_length=150)
@@ -234,7 +256,9 @@ async def http_exception_handler(request: Request, exc: Exception):
         path=request.url.path,
         exception_type=type(exc).__name__,
     )
-    return RedirectResponse(f"{URL_BASE}/registro/error/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        f"{URL_BASE}/registro/error/", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 # CORS
@@ -247,7 +271,7 @@ app.add_middleware(
         "https://www.smmun.com",
         "https://smmun0githubio-production.up.railway.app",
         "https://smmun0.github.io",
-        "https://github.io"
+        "https://github.io",
     ],
     allow_credentials=True,
     allow_methods=["POST"],
@@ -264,7 +288,9 @@ def normalizar_comite(siglas: str) -> str:
     return texto
 
 
-def obtener_tipo_delegacion(comite_siglas: str, delegacion_nombre: str) -> Optional[str]:
+def obtener_tipo_delegacion(
+    comite_siglas: str, delegacion_nombre: str
+) -> Optional[str]:
     clave = normalizar_comite(comite_siglas)
     data = delegaciones_data.get(clave)
     if not isinstance(data, dict):
@@ -318,23 +344,30 @@ def parse_delegaciones_faculty(form, count: int):
         if not nombre and not apellido:
             continue
 
-        delegaciones.append({
-            "nombre": nombre,
-            "apellido": apellido,
-            "edad": int(edad) if edad else None,
-            "celular": celular,
-            "correo": correo,
-            "pais": pais,
-            "ciudad_estado": ciudad_estado,
-            "escolaridad": escolaridad,
-            "escuela": escuela
-        })
+        delegaciones.append(
+            {
+                "nombre": nombre,
+                "apellido": apellido,
+                "edad": int(edad) if edad else None,
+                "celular": celular,
+                "correo": correo,
+                "pais": pais,
+                "ciudad_estado": ciudad_estado,
+                "escolaridad": escolaridad,
+                "escuela": escuela,
+            }
+        )
 
     return delegaciones
 
+
 # Endpoint para el forms
 @router.post("/registro/delegaciones")
-async def registrar(request: Request, data: DelegacionFormData = Depends(), comprobante: UploadFile = File(...)):
+async def registrar(
+    request: Request,
+    data: DelegacionFormData = Depends(),
+    comprobante: UploadFile = File(...),
+):
     request_id = getattr(request.state, "request_id", str(uuid4()))
     submission_type = "delegacion"
     log_info("delegaciones_start", request_id=request_id, modalidad=data.modalidad)
@@ -343,38 +376,84 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
     if comprobante.content_type is None or comprobante.size is None:
         raise_validation_error(request_id, "No se envió la imagen.")
 
-    if not (comprobante.content_type.startswith("image/") or comprobante.content_type == "application/pdf") or comprobante.size > 5242880:
-        raise_validation_error(request_id, "Imagen inválida.", content_type=comprobante.content_type, size=comprobante.size)
+    if (
+        not (
+            comprobante.content_type.startswith("image/")
+            or comprobante.content_type == "application/pdf"
+        )
+        or comprobante.size > 5242880
+    ):
+        raise_validation_error(
+            request_id,
+            "Imagen inválida.",
+            content_type=comprobante.content_type,
+            size=comprobante.size,
+        )
 
     # Validar comités
-    if data.modalidad == "pareja" and (data.comite_0 in ["Cumbre", "Crisis"] or data.comite_1 in ["Cumbre", "Crisis"] or data.comite_2 in ["Cumbre", "Crisis"]):
-        raise_validation_error(request_id, "Opción inválida de comité para codelegación.", comites=[data.comite_0, data.comite_1, data.comite_2])
+    if data.modalidad == "pareja" and (
+        data.comite_0 in ["Cumbre", "Crisis"]
+        or data.comite_1 in ["Cumbre", "Crisis"]
+        or data.comite_2 in ["Cumbre", "Crisis"]
+    ):
+        raise_validation_error(
+            request_id,
+            "Opción inválida de comité para codelegación.",
+            comites=[data.comite_0, data.comite_1, data.comite_2],
+        )
 
     comites = [data.comite_0, data.comite_1, data.comite_2]
     if len(comites) != len(set(comites)):
-        raise_validation_error(request_id, "Opciones de comités repetidas.", comites=comites)
+        raise_validation_error(
+            request_id, "Opciones de comités repetidas.", comites=comites
+        )
 
-    if data.delegacion_oficial == "si" and (not data.nombre_delegacion_oficial or not data.responsable_delegacion_oficial):
+    if data.delegacion_oficial == "si" and (
+        not data.nombre_delegacion_oficial or not data.responsable_delegacion_oficial
+    ):
         raise_validation_error(request_id, "Faltan datos de delegación oficial.")
 
     # Validar países
     paises_0 = [data.comite_0_pais_0, data.comite_0_pais_1, data.comite_0_pais_2]
     if len(paises_0) != len(set(paises_0)):
-        raise_validation_error(request_id, "Opciones de delegación repetidas.", comite=data.comite_0, opciones=paises_0)
-    
+        raise_validation_error(
+            request_id,
+            "Opciones de delegación repetidas.",
+            comite=data.comite_0,
+            opciones=paises_0,
+        )
+
     paises_1 = [data.comite_1_pais_0, data.comite_1_pais_1, data.comite_1_pais_2]
     if len(paises_1) != len(set(paises_1)):
-        raise_validation_error(request_id, "Opciones de delegación repetidas.", comite=data.comite_1, opciones=paises_1)
-    
+        raise_validation_error(
+            request_id,
+            "Opciones de delegación repetidas.",
+            comite=data.comite_1,
+            opciones=paises_1,
+        )
+
     paises_2 = [data.comite_2_pais_0, data.comite_2_pais_1, data.comite_2_pais_2]
     if len(paises_2) != len(set(paises_2)):
-        raise_validation_error(request_id, "Opciones de delegación repetidas.", comite=data.comite_2, opciones=paises_2)
+        raise_validation_error(
+            request_id,
+            "Opciones de delegación repetidas.",
+            comite=data.comite_2,
+            opciones=paises_2,
+        )
 
     es_codelegacion = data.modalidad == "pareja"
-    
+
     # Validar edades
-    if not 11 <= int(data.edad_0) <= 26 or (es_codelegacion and (data.edad_1 is None or not 11 <= int(data.edad_1) <= 26)):
-        raise_validation_error(request_id, "Edad inválida.", edad_0=data.edad_0, edad_1=data.edad_1, modalidad=data.modalidad)
+    if not 11 <= int(data.edad_0) <= 26 or (
+        es_codelegacion and (data.edad_1 is None or not 11 <= int(data.edad_1) <= 26)
+    ):
+        raise_validation_error(
+            request_id,
+            "Edad inválida.",
+            edad_0=data.edad_0,
+            edad_1=data.edad_1,
+            modalidad=data.modalidad,
+        )
 
     # Validar datos de codelegación obligatorios
     if es_codelegacion:
@@ -412,11 +491,22 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
             if not valor:
                 continue
             if ":" not in valor:
-                raise_validation_error(request_id, "Delegación inválida.", comite=comite_siglas, valor=valor)
+                raise_validation_error(
+                    request_id,
+                    "Delegación inválida.",
+                    comite=comite_siglas,
+                    valor=valor,
+                )
             _, delegacion_nombre = parse_delegacion(valor)
             tipo = obtener_tipo_delegacion(comite_siglas, delegacion_nombre)
             if tipo in TIPOS_SOLO_INDIVIDUAL:
-                raise_validation_error(request_id, "Delegación no disponible para codelegación.", comite=comite_siglas, delegacion=delegacion_nombre, tipo=tipo)
+                raise_validation_error(
+                    request_id,
+                    "Delegación no disponible para codelegación.",
+                    comite=comite_siglas,
+                    delegacion=delegacion_nombre,
+                    tipo=tipo,
+                )
 
     # Crear documento para Firestore
     delegacion_oficial = {
@@ -437,24 +527,28 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
             "escolaridad": data.escolaridad_0,
             "escuela": data.escuela_0 or "No aplica",
             "contacto_emergencia": f"{data.nombre_contacto_0} ({data.relacion_contacto_0}): {data.celular_contacto_0}",
-            "info_extra": data.info_extra_0
+            "info_extra": data.info_extra_0,
         }
     ]
 
     if es_codelegacion:
-        participantes.append({
-            "nombre": data.nombre_1,
-            "apellido": data.apellido_1,
-            "edad": int(cast(str, data.edad_1)),
-            "celular": data.celular_1,
-            "correo": data.correo_1,
-            "pais": data.pais_1,
-            "ciudad_estado": data.ciudad_estado_1,
-            "escolaridad": data.escolaridad_1,
-            "escuela": (data.escuela_1 or "No aplica"),
-            "contacto_emergencia": f"{data.nombre_contacto_1} ({data.relacion_contacto_1}): {data.celular_contacto_1}",
-            "info_extra": data.info_extra_1 if es_codelegacion and data.info_extra_1 else None
-        })
+        participantes.append(
+            {
+                "nombre": data.nombre_1,
+                "apellido": data.apellido_1,
+                "edad": int(cast(str, data.edad_1)),
+                "celular": data.celular_1,
+                "correo": data.correo_1,
+                "pais": data.pais_1,
+                "ciudad_estado": data.ciudad_estado_1,
+                "escolaridad": data.escolaridad_1,
+                "escuela": (data.escuela_1 or "No aplica"),
+                "contacto_emergencia": f"{data.nombre_contacto_1} ({data.relacion_contacto_1}): {data.celular_contacto_1}",
+                "info_extra": (
+                    data.info_extra_1 if es_codelegacion and data.info_extra_1 else None
+                ),
+            }
+        )
 
     comites = [
         {
@@ -462,32 +556,32 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
             "opciones": [
                 data.comite_0_pais_0.split(":")[1],
                 data.comite_0_pais_1.split(":")[1],
-                data.comite_0_pais_2.split(":")[1] if data.comite_0_pais_2 else None
-            ]
+                data.comite_0_pais_2.split(":")[1] if data.comite_0_pais_2 else None,
+            ],
         },
         {
             "nombre": data.comite_1,
             "opciones": [
                 data.comite_1_pais_0.split(":")[1],
                 data.comite_1_pais_1.split(":")[1],
-                data.comite_1_pais_2.split(":")[1] if data.comite_1_pais_2 else None
-            ]
+                data.comite_1_pais_2.split(":")[1] if data.comite_1_pais_2 else None,
+            ],
         },
         {
             "nombre": data.comite_2,
             "opciones": [
                 data.comite_2_pais_0.split(":")[1],
                 data.comite_2_pais_1.split(":")[1],
-                data.comite_2_pais_2.split(":")[1] if data.comite_2_pais_2 else None
-            ]
-        }
+                data.comite_2_pais_2.split(":")[1] if data.comite_2_pais_2 else None,
+            ],
+        },
     ]
 
     data_obj = {
         "modalidad": "pareja" if es_codelegacion else "individual",
         "delegacion_oficial": delegacion_oficial,
         "participantes": participantes,
-        "comites": comites
+        "comites": comites,
     }
 
     now = datetime.now(timezone.utc)
@@ -503,7 +597,9 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
     )
 
     # Subir comprobante a Cloud Storage
-    mime_type = mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
+    mime_type = (
+        mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
+    )
     extension = mimetypes.guess_extension(mime_type) or ".bin"
     blob_name = f"uploads/delegaciones/{'CODELEGACION' if es_codelegacion else 'DELEGACION'}_{data.nombre_0}_{data.apellido_0}_{doc_ref_id}{extension}"
 
@@ -534,17 +630,16 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
 
     await comprobante.close()
 
-    doc_ref.set({
-        "type": "delegacion",
-        "status": "pending",
-
-        "created_at": now,
-        "updated_at": now,
-
-        "file_path": blob_name,
-
-        "data": data_obj
-    })
+    doc_ref.set(
+        {
+            "type": "delegacion",
+            "status": "pending",
+            "created_at": now,
+            "updated_at": now,
+            "file_path": blob_name,
+            "data": data_obj,
+        }
+    )
     log_info(
         "firestore_write_succeeded",
         request_id=request_id,
@@ -562,7 +657,7 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
                     "request_id": request_id,
                     "submission_type": submission_type,
                 }
-            ).encode("utf-8")
+            ).encode("utf-8"),
         )
         log_info(
             "delegaciones_published_event",
@@ -593,23 +688,49 @@ async def registrar(request: Request, data: DelegacionFormData = Depends(), comp
         final_status="completed",
     )
     # Redirigir a página de confirmación
-    return RedirectResponse(f"{URL_BASE}/registro/confirmacion/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        f"{URL_BASE}/registro/confirmacion/", status_code=status.HTTP_303_SEE_OTHER
+    )
+
 
 @router.post("/registro/faculty")
-async def registrar_faculty(request: Request, data: FacultyFormData = Depends(), comprobante: UploadFile = File(...)):
+async def registrar_faculty(
+    request: Request,
+    data: FacultyFormData = Depends(),
+    comprobante: UploadFile = File(...),
+):
     request_id = getattr(request.state, "request_id", str(uuid4()))
     submission_type = "faculty"
-    log_info("faculty_start", request_id=request_id, numero_delegaciones=data.numero_delegaciones)
+    log_info(
+        "faculty_start",
+        request_id=request_id,
+        numero_delegaciones=data.numero_delegaciones,
+    )
 
     # Validar archivo
     if comprobante.content_type is None or comprobante.size is None:
         raise_validation_error(request_id, "No se envió la imagen.")
 
-    if not (comprobante.content_type.startswith("image/") or comprobante.content_type == "application/pdf") or comprobante.size > 5242880:
-        raise_validation_error(request_id, "Imagen inválida.", content_type=comprobante.content_type, size=comprobante.size)
+    if (
+        not (
+            comprobante.content_type.startswith("image/")
+            or comprobante.content_type == "application/pdf"
+        )
+        or comprobante.size > 5242880
+    ):
+        raise_validation_error(
+            request_id,
+            "Imagen inválida.",
+            content_type=comprobante.content_type,
+            size=comprobante.size,
+        )
 
     if int(data.numero_delegaciones) < 4:
-        raise_validation_error(request_id, "Número de delegaciones inválido.", numero_delegaciones=data.numero_delegaciones)
+        raise_validation_error(
+            request_id,
+            "Número de delegaciones inválido.",
+            numero_delegaciones=data.numero_delegaciones,
+        )
 
     # Obtener datos de delegaciones
     form = await request.form()
@@ -632,11 +753,10 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
             "celular": data.celular_faculty,
             "correo": data.correo_faculty,
             "ciudad_estado": data.ciudad_estado_faculty,
-            "pais": data.pais_faculty
+            "pais": data.pais_faculty,
         },
-
         "numero_delegaciones": int(data.numero_delegaciones),
-        "delegaciones": delegaciones
+        "delegaciones": delegaciones,
     }
 
     now = datetime.now(timezone.utc)
@@ -652,7 +772,9 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
     )
 
     # Subir comprobante a Cloud Storage
-    mime_type = mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
+    mime_type = (
+        mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
+    )
     extension = mimetypes.guess_extension(mime_type) or ".bin"
     blob_name = f"uploads/faculty/FACULTY_{data.institucion_delegacion_oficial}_{doc_ref_id}{extension}"
 
@@ -683,17 +805,16 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
 
     await comprobante.close()
 
-    doc_ref.set({
-        "type": "faculty",
-        "status": "pending",
-
-        "created_at": now,
-        "updated_at": now,
-
-        "file_path": blob_name,
-
-        "data": data_obj
-    })
+    doc_ref.set(
+        {
+            "type": "faculty",
+            "status": "pending",
+            "created_at": now,
+            "updated_at": now,
+            "file_path": blob_name,
+            "data": data_obj,
+        }
+    )
     log_info(
         "firestore_write_succeeded",
         request_id=request_id,
@@ -711,7 +832,7 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
                     "request_id": request_id,
                     "submission_type": submission_type,
                 }
-            ).encode("utf-8")
+            ).encode("utf-8"),
         )
         log_info(
             "faculty_published_event",
@@ -742,7 +863,9 @@ async def registrar_faculty(request: Request, data: FacultyFormData = Depends(),
         final_status="completed",
     )
     # Redirigir a página de confirmación
-    return RedirectResponse(f"{URL_BASE}/registro/confirmacion/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        f"{URL_BASE}/registro/confirmacion/", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 # Usar el router
