@@ -5,9 +5,12 @@ resource "google_project_service" "services" {
     "cloudfunctions.googleapis.com",
     "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
     "pubsub.googleapis.com",
     "firestore.googleapis.com",
     "secretmanager.googleapis.com",
+    "sheets.googleapis.com",
     "storage.googleapis.com",
     "eventarc.googleapis.com",
   ])

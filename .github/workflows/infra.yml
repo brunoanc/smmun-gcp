@@ -18,6 +18,7 @@ concurrency:
 
 env:
   TF_IN_AUTOMATION: true
+  RESEND_SECRET_NAME: resend-api-key
 
 jobs:
   terraform:
@@ -54,19 +55,43 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Bootstrap Resend secret
+        run: |
+          terraform apply -auto-approve \
+            -target=google_secret_manager_secret.resend_api_key \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="api_domain=${{ vars.API_DOMAIN }}" \
+            -var="resend_secret_name=${{ env.RESEND_SECRET_NAME }}" \
+            -var="delegaciones_spreadsheet_id=${{ vars.DELEGACIONES_SPREADSHEET_ID }}" \
+            -var="delegaciones_sheet_id=${{ vars.DELEGACIONES_SHEET_ID }}" \
+            -var="delegaciones_table_id=${{ vars.DELEGACIONES_TABLE_ID }}" \
+            -var="faculty_spreadsheet_id=${{ vars.FACULTY_SPREADSHEET_ID }}" \
+            -var="faculty_general_sheet_id=${{ vars.FACULTY_GENERAL_SHEET_ID }}" \
+            -var="faculty_general_table_id=${{ vars.FACULTY_GENERAL_TABLE_ID }}" \
+            -var="faculty_delegaciones_sheet_id=${{ vars.FACULTY_DELEGACIONES_SHEET_ID }}" \
+            -var="faculty_delegaciones_table_id=${{ vars.FACULTY_DELEGACIONES_TABLE_ID }}"
+
+      - name: Seed Resend API key secret version
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          test -n "$RESEND_API_KEY"
+          printf '%s' "$RESEND_API_KEY" | gcloud secrets versions add "$RESEND_SECRET_NAME" --project="${{ vars.GCP_PROJECT_ID }}" --data-file=-
+
       - name: Terraform Plan
         run: |
           terraform plan \
             -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
             -var="api_domain=${{ vars.API_DOMAIN }}" \
-            -var="delegaciones_spreadsheet_id=10V54CqKaXQFwFsFkw0eBpXSDH-MhZ1pXwKJYB1rJoC4" \
-            -var="delegaciones_sheet_id=1743848330" \
-            -var="delegaciones_table_id=1509385248" \
-            -var="faculty_spreadsheet_id=118vacPNUVHQ2OmEWYsL9qSPxkdrvMTscn2kQRGlNDAE" \
-            -var="faculty_general_sheet_id=0" \
-            -var="faculty_general_table_id=2079575764" \
-            -var="faculty_delegaciones_sheet_id=399805608" \
-            -var="faculty_delegaciones_table_id=1297311155" \
+            -var="resend_secret_name=${{ env.RESEND_SECRET_NAME }}" \
+            -var="delegaciones_spreadsheet_id=${{ vars.DELEGACIONES_SPREADSHEET_ID }}" \
+            -var="delegaciones_sheet_id=${{ vars.DELEGACIONES_SHEET_ID }}" \
+            -var="delegaciones_table_id=${{ vars.DELEGACIONES_TABLE_ID }}" \
+            -var="faculty_spreadsheet_id=${{ vars.FACULTY_SPREADSHEET_ID }}" \
+            -var="faculty_general_sheet_id=${{ vars.FACULTY_GENERAL_SHEET_ID }}" \
+            -var="faculty_general_table_id=${{ vars.FACULTY_GENERAL_TABLE_ID }}" \
+            -var="faculty_delegaciones_sheet_id=${{ vars.FACULTY_DELEGACIONES_SHEET_ID }}" \
+            -var="faculty_delegaciones_table_id=${{ vars.FACULTY_DELEGACIONES_TABLE_ID }}" \
             -out=tfplan
 
       - name: Terraform Apply

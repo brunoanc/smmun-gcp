@@ -9,8 +9,8 @@ terraform {
   }
 
   backend "gcs" {
-    bucket  = "smmun-terraform-state"
-    prefix  = "terraform/state"
+    bucket = "smmun-terraform-state"
+    prefix = "terraform/state"
   }
 }
 
