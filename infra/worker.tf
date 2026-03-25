@@ -4,6 +4,9 @@ resource "google_storage_bucket" "functions_source" {
   location                    = upper(var.region)
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  depends_on = [google_project_service.services]
 }
 
 # Upload code to bucket
@@ -65,6 +68,7 @@ resource "google_cloudfunctions2_function" "worker" {
 
   depends_on = [
     google_project_service.services,
+    google_firestore_database.default,
     google_project_iam_member.worker_storage_viewer,
     google_project_iam_member.worker_datastore_user,
     google_project_iam_member.worker_token_creator,

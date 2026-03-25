@@ -35,6 +35,7 @@ resource "google_cloud_run_v2_service" "api" {
 
   depends_on = [
     google_project_service.services,
+    google_firestore_database.default,
     google_project_iam_member.api_storage_creator,
     google_project_iam_member.api_datastore_user,
     google_project_iam_member.api_pubsub_publisher

@@ -38,7 +38,7 @@ variable "api_service_name" {
 }
 
 variable "api_domain" {
-  type    = string
+  type = string
 }
 
 variable "worker_function_name" {
@@ -47,33 +47,33 @@ variable "worker_function_name" {
 }
 
 variable "delegaciones_spreadsheet_id" {
-  type    = string
+  type = string
 }
 
 variable "delegaciones_sheet_id" {
-  type    = string
+  type = string
 }
 
 variable "delegaciones_table_id" {
-  type    = string
+  type = string
 }
 
 variable "faculty_spreadsheet_id" {
-  type    = string
+  type = string
 }
 
 variable "faculty_general_sheet_id" {
-  type    = string
+  type = string
 }
 
 variable "faculty_general_table_id" {
-  type    = string
+  type = string
 }
 
 variable "faculty_delegaciones_sheet_id" {
-  type    = string
+  type = string
 }
 
 variable "faculty_delegaciones_table_id" {
-  type    = string
+  type = string
 }
