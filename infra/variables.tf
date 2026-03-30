@@ -22,6 +22,16 @@ variable "firestore_collection_name" {
   default = "inscripciones"
 }
 
+variable "idempotency_collection_name" {
+  type    = string
+  default = "inscripciones_idempotencia"
+}
+
+variable "outbox_collection_name" {
+  type    = string
+  default = "inscripciones_outbox"
+}
+
 variable "pubsub_topic_name" {
   type    = string
   default = "smmun-inscripciones-topic"
@@ -44,6 +54,26 @@ variable "api_domain" {
 variable "worker_function_name" {
   type    = string
   default = "smmun-worker-function"
+}
+
+variable "publisher_function_name" {
+  type    = string
+  default = "smmun-outbox-publisher-function"
+}
+
+variable "outbox_sweeper_function_name" {
+  type    = string
+  default = "smmun-outbox-sweeper-function"
+}
+
+variable "outbox_sweep_topic_name" {
+  type    = string
+  default = "smmun-outbox-sweep-topic"
+}
+
+variable "outbox_sweep_schedule" {
+  type    = string
+  default = "*/5 * * * *"
 }
 
 variable "delegaciones_spreadsheet_id" {

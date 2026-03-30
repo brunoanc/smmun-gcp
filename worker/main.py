@@ -7,16 +7,13 @@ from datetime import timedelta
 import functions_framework
 import logging
 import os
-import pathlib
 import time
 import json
 import resend
 import base64
-import io
 from uuid import uuid4
 import traceback
 
-# Logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(), format="%(message)s")
 logger = logging.getLogger(__name__)
 LOG_COMPONENT = "worker"
@@ -49,25 +46,20 @@ def log_exception(event: str, **fields):
     logger.error(_to_json_log(event, "ERROR", error=traceback.format_exc(), **fields))
 
 
-# Credenciales Google Sheets API
 google_credentials, PROJECT_ID = default()
 sheets_service = build("sheets", "v4", credentials=google_credentials)
 
-# Credenciales Resend API
 resend.api_key = os.environ["RESEND_API_KEY"]
 
-# Firestore DB
 FIRESTORE_COLLECTION_NAME = os.environ["FIRESTORE_COLLECTION_NAME"]
 db_client = firestore.Client()
 db_collection = db_client.collection(FIRESTORE_COLLECTION_NAME)
 
-# Cloud Storage
 COMPROBANTES_BUCKET_NAME = os.environ["COMPROBANTES_BUCKET_NAME"]
 storage_client = storage.Client()
 comprobantes_bucket = storage_client.bucket(COMPROBANTES_BUCKET_NAME)
 
 
-# HTML y archivos adjuntos de correos para enviar (plantillas de prueba)
 with (
     open("email/codelegacion.html", "r", encoding="utf-8") as co,
     open("email/delegacion.html", "r", encoding="utf-8") as dg,
@@ -135,7 +127,6 @@ def manejar_inscripcion(data: dict, request_id: str):
         submission_type=submission_type,
     )
 
-    # Obtener link temporal a comprobante
     comprobante_path = data["file_path"]
     blob = comprobantes_bucket.blob(comprobante_path)
     url = blob.generate_signed_url(
@@ -157,7 +148,6 @@ def manejar_inscripcion(data: dict, request_id: str):
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
 
-    # Añadir al sheets de inscripciones
     row_values = [
         False,
         fecha_str,
@@ -231,7 +221,6 @@ def manejar_inscripcion(data: dict, request_id: str):
         body=append_cells_request,
     ).execute()
 
-    # Mandar correo
     destinatarios = list(filter(None, [p1.get("correo"), p2.get("correo")]))
 
     comite_1_largo = comite_corto_a_largo(inscripcion["comites"][0]["nombre"])
@@ -345,7 +334,6 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
         submission_type=submission_type,
     )
 
-    # Obtener link temporal a comprobante
     comprobante_path = data["file_path"]
     blob = comprobantes_bucket.blob(comprobante_path)
     url = blob.generate_signed_url(
@@ -358,7 +346,6 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
 
     timestamp = int(time.time())
 
-    # Añadir nueva página al sheets
     title = f"{inscripcion['institucion']}_{timestamp}"
     body = {"requests": [{"addSheet": {"properties": {"title": title}}}]}
 
@@ -369,7 +356,6 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
 
-    # Añadir al sheets de inscripciones
     row_values = [
         False,
         fecha_str,
@@ -401,7 +387,6 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
         spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=append_cells_request
     ).execute()
 
-    # Añadir valores al sheets
     body = {
         "values": [
             [
@@ -529,18 +514,22 @@ def claim_submission(doc_ref):
     @firestore.transactional
     def _claim(transaction, doc_ref):
         doc = doc_ref.get(transaction=transaction)
+
         if not doc.exists:
             return False
+
         data = doc.to_dict()
-        if data.get("status") in ["processing", "completed"]:
+
+        # Failed submissions are also skipped here because downstream side effects are not idempotent.
+        if data.get("status") in ["processing", "completed", "failed"]:
             return False
+
         transaction.update(doc_ref, {"status": "processing"})
         return True
 
     return _claim(transaction, doc_ref)
 
 
-# Procesar evento (inscripcion)
 def process_submission(
     submission_id: str, request_id: str, submission_type: str | None = None
 ):
@@ -556,7 +545,8 @@ def process_submission(
     doc_ref = db_collection.document(submission_id)
 
     try:
-        # Idempotencia
+
+        # Moving to processing is the worker's durable claim point.
         if not claim_submission(doc_ref):
             log_info(
                 "submission_skipped",

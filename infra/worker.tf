@@ -16,6 +16,12 @@ resource "google_storage_bucket_object" "worker_zip" {
   source = "${path.module}/worker.zip"
 }
 
+resource "google_storage_bucket_object" "outbox_zip" {
+  name   = "outbox.zip"
+  bucket = google_storage_bucket.functions_source.name
+  source = "${path.module}/outbox.zip"
+}
+
 # Cloud Run functions worker resource
 resource "google_cloudfunctions2_function" "worker" {
   name     = var.worker_function_name
@@ -71,7 +77,132 @@ resource "google_cloudfunctions2_function" "worker" {
     google_firestore_database.default,
     google_project_iam_member.worker_storage_viewer,
     google_project_iam_member.worker_datastore_user,
+    google_project_iam_member.worker_pubsub_publisher,
     google_project_iam_member.worker_token_creator,
     google_secret_manager_secret_iam_member.worker_secret_access
+  ]
+}
+
+resource "google_cloudfunctions2_function" "publisher" {
+  name     = var.publisher_function_name
+  location = var.region
+
+  build_config {
+    runtime     = "python311"
+    entry_point = "outbox_created_handler"
+
+    source {
+      storage_source {
+        bucket = google_storage_bucket.functions_source.name
+        object = google_storage_bucket_object.outbox_zip.name
+      }
+    }
+  }
+
+  service_config {
+    service_account_email = google_service_account.worker.email
+    available_memory      = "256M"
+    timeout_seconds       = 60
+
+    environment_variables = {
+      OUTBOX_COLLECTION_NAME = var.outbox_collection_name
+      PUB_SUB_TOPIC_NAME     = google_pubsub_topic.inscripciones.name
+    }
+  }
+
+  event_trigger {
+    service_account_email = google_service_account.worker.email
+    trigger_region        = var.region
+    event_type            = "google.cloud.firestore.document.v1.created"
+    retry_policy          = "RETRY_POLICY_RETRY"
+
+    event_filters {
+      attribute = "database"
+      value     = google_firestore_database.default.name
+    }
+
+    event_filters {
+      attribute = "namespace"
+      value     = "(default)"
+    }
+
+    event_filters {
+      attribute = "document"
+      value     = "${var.outbox_collection_name}/{outboxId}"
+      operator  = "match-path-pattern"
+    }
+  }
+
+  depends_on = [
+    google_project_service.services,
+    google_firestore_database.default,
+    google_project_iam_member.firestore_eventarc_publisher,
+    google_project_iam_member.worker_datastore_user,
+    google_project_iam_member.worker_pubsub_publisher,
+    google_project_iam_member.worker_eventarc_receiver
+  ]
+}
+
+resource "google_cloudfunctions2_function" "outbox_sweeper" {
+  name     = var.outbox_sweeper_function_name
+  location = var.region
+
+  build_config {
+    runtime     = "python311"
+    entry_point = "outbox_sweep_handler"
+
+    source {
+      storage_source {
+        bucket = google_storage_bucket.functions_source.name
+        object = google_storage_bucket_object.outbox_zip.name
+      }
+    }
+  }
+
+  service_config {
+    service_account_email = google_service_account.worker.email
+    available_memory      = "256M"
+    timeout_seconds       = 60
+
+    environment_variables = {
+      OUTBOX_COLLECTION_NAME = var.outbox_collection_name
+      PUB_SUB_TOPIC_NAME     = google_pubsub_topic.inscripciones.name
+    }
+  }
+
+  event_trigger {
+    service_account_email = google_service_account.worker.email
+    trigger_region        = var.region
+    event_type            = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic          = google_pubsub_topic.outbox_sweep.id
+    retry_policy          = "RETRY_POLICY_RETRY"
+  }
+
+  depends_on = [
+    google_project_service.services,
+    google_firestore_database.default,
+    google_project_iam_member.worker_datastore_user,
+    google_project_iam_member.worker_pubsub_publisher,
+    google_project_iam_member.worker_eventarc_receiver
+  ]
+}
+
+resource "google_cloud_scheduler_job" "outbox_sweep" {
+  name        = "smmun-outbox-sweep"
+  description = "Periodically retries pending or stale outbox rows."
+  region      = var.region
+  schedule    = var.outbox_sweep_schedule
+  time_zone   = "Etc/UTC"
+
+  pubsub_target {
+    topic_name = google_pubsub_topic.outbox_sweep.id
+    data       = base64encode(jsonencode({ trigger = "outbox_sweep" }))
+  }
+
+  depends_on = [
+    google_project_service.services,
+    google_cloudfunctions2_function.outbox_sweeper,
+    google_pubsub_topic.outbox_sweep,
+    google_pubsub_topic_iam_member.scheduler_outbox_sweep_publisher
   ]
 }

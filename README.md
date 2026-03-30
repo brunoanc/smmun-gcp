@@ -24,14 +24,18 @@ Cloud-native, event-driven backend for handling conference registrations on Goog
 1. Users submit a form via a static frontend (Firebase Hosting)
 2. The API (Cloud Run, FastAPI):
    - validates input
+   - absorbs duplicate submits using an idempotency key
    - uploads files to Cloud Storage
-   - stores metadata in Firestore
-   - publishes an event to Pub/Sub
-3. A worker (Cloud Functions / Cloud Run functions) processes submissions asynchronously:
+   - stores the submission, idempotency record, and outbox job atomically in Firestore
+   - returns confirmation once the submission is durably accepted
+3. An outbox publisher (Cloud Run functions) asynchronously publishes pending submission events to Pub/Sub
+   - one trigger reacts immediately to newly created outbox rows
+   - a scheduled sweep revisits pending/stale rows until they are sent
+4. A worker (Cloud Functions / Cloud Run functions) processes submissions asynchronously:
    - generates signed URLs
    - writes data to Google Sheets
    - sends confirmation emails (Resend)
-4. Firestore tracks submission state:
+5. Firestore tracks submission state:
     ```
     pending → processing → completed / failed
     ```
@@ -58,7 +62,8 @@ Cloud-native, event-driven backend for handling conference registrations on Goog
 
 - Event-driven architecture (Pub/Sub)
 - Asynchronous processing via worker
-- Idempotent processing using Firestore state
+- API-level idempotency for submission ingestion
+- Reliable asynchronous delivery via Firestore outbox
 - Secure file access with signed URLs
 - Structured logging with request tracing
 - Infrastructure managed with Terraform
@@ -68,7 +73,8 @@ Cloud-native, event-driven backend for handling conference registrations on Goog
 ## Structure
 
 - `/api` FastAPI service (Cloud Run)
-- `/worker` Event processor (Cloud Run functions)
+- `/worker` Submission processor (Cloud Run functions)
+- `/outbox` Outbox publisher and sweep handlers (Cloud Run functions)
 - `/front` Svelte frontend
 - `/infra` Terraform code
 - `/docs` Architecture diagram

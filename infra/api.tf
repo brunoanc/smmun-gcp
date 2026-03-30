@@ -16,13 +16,24 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name  = "COMPROBANTES_BUCKET_NAME"
-        value = google_storage_bucket.comprobantes.name
+        name  = "IDEMPOTENCY_COLLECTION_NAME"
+        value = var.idempotency_collection_name
       }
 
       env {
+        name  = "OUTBOX_COLLECTION_NAME"
+        value = var.outbox_collection_name
+      }
+
+      # TODO: eliminar después del siguiente deployment
+      env {
         name  = "PUB_SUB_TOPIC_NAME"
         value = google_pubsub_topic.inscripciones.name
+      }
+
+      env {
+        name  = "COMPROBANTES_BUCKET_NAME"
+        value = google_storage_bucket.comprobantes.name
       }
     }
   }
@@ -36,9 +47,11 @@ resource "google_cloud_run_v2_service" "api" {
   depends_on = [
     google_project_service.services,
     google_firestore_database.default,
-    google_project_iam_member.api_storage_creator,
-    google_project_iam_member.api_datastore_user,
-    google_project_iam_member.api_pubsub_publisher
+    google_cloudfunctions2_function.publisher,
+    google_cloudfunctions2_function.outbox_sweeper,
+    google_cloud_scheduler_job.outbox_sweep,
+    google_storage_bucket_iam_member.api_comprobantes_object_admin,
+    google_project_iam_member.api_datastore_user
   ]
 }
 

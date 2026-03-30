@@ -39,6 +39,12 @@ Used as:
     uploads/delegaciones/DELEGACION_{nombre}_{id}.pdf
     ```
 
+- `request_id`: string
+  - Trace identifier for logs and Pub/Sub
+
+- `idempotency_key`: string
+  - API-level deduplication key
+
 - `error_message`: string (optional)  
   - Present only if `status = "failed"`
 
@@ -162,8 +168,8 @@ pending → processing → completed
 
 * `pending`
 
-  * Created by API
-  * Event published to Pub/Sub
+  * Created and durably accepted by API
+  * Waiting for outbox publication / worker claim
 
 * `processing`
 
@@ -183,10 +189,85 @@ pending → processing → completed
 
 ## Idempotency
 
+System uses two separate layers:
+
+* API-level idempotency by `idempotency_key`
+* worker-level idempotency by `submission_id`
+
+### API-level idempotency
+
+Frontend generates one `idempotency_key` per submit attempt and sends it with the form.
+If an older client submits without a key during rollout, API derives a deterministic fallback key from the normalized payload hash so duplicate legacy submits still deduplicate.
+
+API stores a record in a dedicated Firestore collection before creating side effects:
+
+```json
+{
+  "submission_type": "delegacion" | "faculty",
+  "idempotency_key": "string",
+  "payload_hash": "sha256(normalized form fields + uploaded file bytes)",
+  "request_id": "string",
+  "status": "claimed" | "committed",
+  "submission_id": "string | null",
+  "created_at": "timestamp",
+  "updated_at": "timestamp"
+}
+```
+
+Behavior:
+
+* same key + same payload + `committed` → replay confirmation, do not create a second submission
+  * if the existing submission later reached `failed`, the API redirects to error and rotates the stored key so the next browser submit creates a fresh submission attempt
+  * if the client did not send an explicit key and the API is using the payload-hash fallback, a failed retry reopens that fallback claim so the same payload can create a fresh submission attempt during rollout
+* same key + same payload + `claimed` → treat retry as in progress while the API keeps refreshing the pre-commit claim lease; reclaim only after that short lease stops being renewed
+* same key + different payload → redirect to error and rotate the stored key
+* once a submission is `committed`, browser retries always point to the same canonical `submission_id`
+
+The API success boundary is submission acceptance, not downstream worker completion.
+
+### Worker-level idempotency
+
 Worker uses Firestore transactions to ensure:
 
 * a submission is processed **at most once**
 * duplicate Pub/Sub deliveries are safely ignored
+
+---
+
+## Outbox collection
+
+API writes an outbox record atomically with the submission and idempotency commit.
+
+```json
+{
+  "submission_id": "string",
+  "submission_type": "delegacion" | "faculty",
+  "request_id": "string",
+  "status": "pending" | "publishing" | "sent",
+  "created_at": "timestamp",
+  "updated_at": "timestamp",
+  "publish_started_at": "timestamp | null",
+  "publish_lease_expires_at": "timestamp | null",
+  "publisher_request_id": "string | null",
+  "last_error": "string | null",
+  "attempt_count": 0
+}
+```
+
+Behavior:
+
+* API creates outbox rows with `status = "pending"`
+* a failed submission replay creates a fresh outbox row for the same `submission_id`, so the create-triggered publisher wakes up immediately instead of waiting for the scheduled sweep
+* a dedicated outbox publisher function transactionally claims newly created rows as `publishing` before publishing to Pub/Sub
+* the outbox publish lease is intentionally short and matches the publisher function timeout, so a crashed publish attempt is reclaimable on immediate trigger retries instead of waiting several minutes
+* the sweep retries `pending` rows ordered by `updated_at`, so persistent failures move to the back of the queue instead of starving newer rows
+* a separate scheduled outbox sweep function also revisits stale `publishing` leases every 5 minutes using `publish_lease_expires_at`, so rows are still retried after create-event retries are exhausted without scanning every fresh lease
+* duplicate Firestore create deliveries keep retrying while a row is only leased, so a crash after lease-claim does not wait for the scheduled sweep to resume publication
+* on success, publisher marks the row `sent`
+* on failure, publisher restores the row to `pending`, records `last_error`, and leaves it available for the next trigger or scheduled sweep
+* stale `publishing` rows are reclaimable after the publish lease expires
+
+This keeps Pub/Sub delivery reliability out of the browser request path.
 
 ---
 
@@ -231,12 +312,14 @@ Given `submission_id`:
 On form submission:
 
 1. Validate input (including constraints)
-2. Upload file to Cloud Storage
-3. Create Firestore document:
+2. Claim `idempotency_key` in Firestore
+3. Upload file to Cloud Storage
+4. Atomically create:
 
-   * `status = "pending"`
-4. Publish Pub/Sub message
-5. Return HTTP 303 redirect (confirmation page)
+   * submission document with `status = "pending"`
+   * committed idempotency record
+   * outbox row with `status = "pending"`
+5. Return HTTP 303 redirect (confirmation page) once the submission is durably accepted
 
 ---
 
