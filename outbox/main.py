@@ -86,6 +86,22 @@ def parse_cloud_event_data(cloud_event) -> dict:
     return {}
 
 
+# Extract the Firestore document name from CloudEvent metadata or payload
+def get_document_name_from_cloud_event(cloud_event) -> str | None:
+    subject = cloud_event.get("subject")
+
+    if isinstance(subject, str) and subject:
+        subject = subject.lstrip("/")
+
+        if subject.startswith("documents/"):
+            return subject[len("documents/") :]
+
+        return subject
+
+    event_data = parse_cloud_event_data(cloud_event)
+    return event_data.get("value", {}).get("name")
+
+
 # Claim an outbox row for publication or report why it cannot be claimed
 def claim_outbox_entry(doc_ref):
     transaction = db_client.transaction()
@@ -294,8 +310,7 @@ def run_outbox_sweep():
 # Publish immediately when a new outbox row is created
 @functions_framework.cloud_event
 def outbox_created_handler(cloud_event):
-    event_data = parse_cloud_event_data(cloud_event)
-    document_name = event_data.get("value", {}).get("name")
+    document_name = get_document_name_from_cloud_event(cloud_event)
 
     if not document_name:
         log_warning("outbox_event_missing_document_name")
