@@ -11,13 +11,13 @@ resource "google_storage_bucket" "functions_source" {
 
 # Upload code to bucket
 resource "google_storage_bucket_object" "worker_zip" {
-  name   = "worker.zip"
+  name   = "worker-${filemd5("${path.module}/worker.zip")}.zip"
   bucket = google_storage_bucket.functions_source.name
   source = "${path.module}/worker.zip"
 }
 
 resource "google_storage_bucket_object" "outbox_zip" {
-  name   = "outbox.zip"
+  name   = "outbox-${filemd5("${path.module}/outbox.zip")}.zip"
   bucket = google_storage_bucket.functions_source.name
   source = "${path.module}/outbox.zip"
 }
