@@ -4,12 +4,12 @@ import logging
 import os
 import traceback
 from uuid import uuid4
-
 import functions_framework
 from google.auth import default
 from google.cloud import firestore, pubsub_v1
 
 
+# Logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(), format="%(message)s")
 logger = logging.getLogger(__name__)
 LOG_COMPONENT = "outbox"
@@ -215,6 +215,7 @@ def finalize_outbox_entry(doc_ref, publisher_request_id: str | None, updates: di
     return _finalize(transaction, doc_ref)
 
 
+# Shared path for sweep retries and create-trigger deliveries.
 def process_outbox_doc(doc):
     claim_result = claim_outbox_entry(doc.reference)
 
@@ -262,6 +263,7 @@ def run_outbox_sweep():
             log_exception("outbox_sweep_row_failed", outbox_id=doc.id)
 
 
+# Publish immediately when a new outbox row is created.
 @functions_framework.cloud_event
 def outbox_created_handler(cloud_event):
     document_name = cloud_event.data.get("value", {}).get("name")
@@ -293,6 +295,7 @@ def outbox_created_handler(cloud_event):
     publish_outbox_entry(doc_ref, claim_result["entry"])
 
 
+# Safety net for pending rows and leases that were never finalized.
 @functions_framework.cloud_event
 def outbox_sweep_handler(cloud_event):
     log_info("outbox_sweep_started")

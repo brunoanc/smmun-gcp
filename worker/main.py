@@ -14,6 +14,7 @@ import base64
 from uuid import uuid4
 import traceback
 
+# Logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(), format="%(message)s")
 logger = logging.getLogger(__name__)
 LOG_COMPONENT = "worker"
@@ -46,20 +47,25 @@ def log_exception(event: str, **fields):
     logger.error(_to_json_log(event, "ERROR", error=traceback.format_exc(), **fields))
 
 
+# Sheets API
 google_credentials, PROJECT_ID = default()
 sheets_service = build("sheets", "v4", credentials=google_credentials)
 
+# Resend API
 resend.api_key = os.environ["RESEND_API_KEY"]
 
+# Firestore DB
 FIRESTORE_COLLECTION_NAME = os.environ["FIRESTORE_COLLECTION_NAME"]
 db_client = firestore.Client()
 db_collection = db_client.collection(FIRESTORE_COLLECTION_NAME)
 
+# Cloud Storage
 COMPROBANTES_BUCKET_NAME = os.environ["COMPROBANTES_BUCKET_NAME"]
 storage_client = storage.Client()
 comprobantes_bucket = storage_client.bucket(COMPROBANTES_BUCKET_NAME)
 
 
+# HTML email templates
 with (
     open("email/codelegacion.html", "r", encoding="utf-8") as co,
     open("email/delegacion.html", "r", encoding="utf-8") as dg,
@@ -127,6 +133,7 @@ def manejar_inscripcion(data: dict, request_id: str):
         submission_type=submission_type,
     )
 
+    # Get temporary signed URL for comprobante
     comprobante_path = data["file_path"]
     blob = comprobantes_bucket.blob(comprobante_path)
     url = blob.generate_signed_url(
@@ -148,6 +155,7 @@ def manejar_inscripcion(data: dict, request_id: str):
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
 
+    # Add to inscripciones sheets
     row_values = [
         False,
         fecha_str,
@@ -221,6 +229,7 @@ def manejar_inscripcion(data: dict, request_id: str):
         body=append_cells_request,
     ).execute()
 
+    # Send email
     destinatarios = list(filter(None, [p1.get("correo"), p2.get("correo")]))
 
     comite_1_largo = comite_corto_a_largo(inscripcion["comites"][0]["nombre"])
@@ -334,6 +343,7 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
         submission_type=submission_type,
     )
 
+    # Get temporary signed URL for comprobante
     comprobante_path = data["file_path"]
     blob = comprobantes_bucket.blob(comprobante_path)
     url = blob.generate_signed_url(
@@ -346,6 +356,7 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
 
     timestamp = int(time.time())
 
+    # Add new page to Sheets
     title = f"{inscripcion['institucion']}_{timestamp}"
     body = {"requests": [{"addSheet": {"properties": {"title": title}}}]}
 
@@ -356,6 +367,7 @@ def manejar_inscripcion_faculty(data: dict, request_id: str):
     created_at = data.get("created_at")
     fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
 
+    # Add to inscripciones sheets
     row_values = [
         False,
         fecha_str,
