@@ -77,7 +77,7 @@ resource "google_cloudfunctions2_function" "worker" {
     google_firestore_database.default,
     google_project_iam_member.worker_storage_viewer,
     google_project_iam_member.worker_datastore_user,
-    google_project_iam_member.worker_pubsub_publisher,
+    google_pubsub_topic_iam_member.worker_pubsub_publisher,
     google_project_iam_member.worker_token_creator,
     google_secret_manager_secret_iam_member.worker_secret_access
   ]
@@ -138,7 +138,7 @@ resource "google_cloudfunctions2_function" "publisher" {
     google_firestore_database.default,
     google_project_iam_member.firestore_eventarc_publisher,
     google_project_iam_member.worker_datastore_user,
-    google_project_iam_member.worker_pubsub_publisher,
+    google_pubsub_topic_iam_member.worker_pubsub_publisher,
     google_project_iam_member.worker_eventarc_receiver
   ]
 }
@@ -182,7 +182,7 @@ resource "google_cloudfunctions2_function" "outbox_sweeper" {
     google_project_service.services,
     google_firestore_database.default,
     google_project_iam_member.worker_datastore_user,
-    google_project_iam_member.worker_pubsub_publisher,
+    google_pubsub_topic_iam_member.worker_pubsub_publisher,
     google_project_iam_member.worker_eventarc_receiver
   ]
 }

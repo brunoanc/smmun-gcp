@@ -36,10 +36,10 @@ resource "google_project_iam_member" "api_datastore_user" {
 }
 
 # TODO: eliminar después del siguiente deployment
-resource "google_project_iam_member" "api_pubsub_publisher_compat" {
-  project = var.project_id
-  role    = "roles/pubsub.publisher"
-  member  = "serviceAccount:${google_service_account.api.email}"
+resource "google_pubsub_topic_iam_member" "api_pubsub_publisher_compat" {
+  topic  = google_pubsub_topic.inscripciones.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.api.email}"
 
   depends_on = [google_project_service.services]
 }
@@ -69,10 +69,10 @@ resource "google_project_iam_member" "worker_token_creator" {
   depends_on = [google_project_service.services]
 }
 
-resource "google_project_iam_member" "worker_pubsub_publisher" {
-  project = var.project_id
-  role    = "roles/pubsub.publisher"
-  member  = "serviceAccount:${google_service_account.worker.email}"
+resource "google_pubsub_topic_iam_member" "worker_pubsub_publisher" {
+  topic  = google_pubsub_topic.inscripciones.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.worker.email}"
 
   depends_on = [google_project_service.services]
 }
