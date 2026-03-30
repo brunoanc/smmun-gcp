@@ -57,6 +57,28 @@ publisher_client = pubsub_v1.PublisherClient()
 topic_path = publisher_client.topic_path(PROJECT_ID, PUB_SUB_TOPIC_NAME)
 
 
+# Normalize CloudEvent payloads that may arrive as decoded JSON or raw bytes
+def parse_cloud_event_data(cloud_event) -> dict:
+    data = cloud_event.data
+
+    if isinstance(data, dict):
+        return data
+
+    if isinstance(data, (bytes, bytearray)):
+        try:
+            return json.loads(data.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return {}
+
+    if isinstance(data, str):
+        try:
+            return json.loads(data)
+        except json.JSONDecodeError:
+            return {}
+
+    return {}
+
+
 def claim_outbox_entry(doc_ref):
     transaction = db_client.transaction()
 
@@ -266,7 +288,8 @@ def run_outbox_sweep():
 # Publish immediately when a new outbox row is created.
 @functions_framework.cloud_event
 def outbox_created_handler(cloud_event):
-    document_name = cloud_event.data.get("value", {}).get("name")
+    event_data = parse_cloud_event_data(cloud_event)
+    document_name = event_data.get("value", {}).get("name")
 
     if not document_name:
         log_warning("outbox_event_missing_document_name")
