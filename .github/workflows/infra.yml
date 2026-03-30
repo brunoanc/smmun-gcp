@@ -6,6 +6,7 @@ on:
     paths:
       - "infra/**"
       - "worker/**"
+      - "outbox/**"
       - ".github/workflows/infra.yml"
 
 permissions:
@@ -48,6 +49,11 @@ jobs:
         run: |
           cd ../worker
           zip -r ../infra/worker.zip . -x 'email_templates/*'
+
+      - name: Prepare outbox zip
+        run: |
+          cd ../outbox
+          zip -r ../infra/outbox.zip .
 
       - name: Terraform Init
         run: terraform init

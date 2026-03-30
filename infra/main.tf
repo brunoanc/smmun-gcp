@@ -4,6 +4,7 @@ resource "google_project_service" "services" {
     "run.googleapis.com",
     "cloudfunctions.googleapis.com",
     "cloudbuild.googleapis.com",
+    "cloudscheduler.googleapis.com",
     "artifactregistry.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
@@ -67,6 +68,47 @@ resource "google_secret_manager_secret" "resend_api_key" {
 resource "google_pubsub_topic" "inscripciones" {
   name       = var.pubsub_topic_name
   depends_on = [google_project_service.services]
+}
+
+resource "google_pubsub_topic" "outbox_sweep" {
+  name       = var.outbox_sweep_topic_name
+  depends_on = [google_project_service.services]
+}
+
+resource "google_firestore_index" "outbox_status_updated_at" {
+  project    = var.project_id
+  database   = google_firestore_database.default.name
+  collection = var.outbox_collection_name
+
+  fields {
+    field_path = "status"
+    order      = "ASCENDING"
+  }
+
+  fields {
+    field_path = "updated_at"
+    order      = "ASCENDING"
+  }
+
+  depends_on = [google_project_service.services, google_firestore_database.default]
+}
+
+resource "google_firestore_index" "outbox_status_publish_lease_expires_at" {
+  project    = var.project_id
+  database   = google_firestore_database.default.name
+  collection = var.outbox_collection_name
+
+  fields {
+    field_path = "status"
+    order      = "ASCENDING"
+  }
+
+  fields {
+    field_path = "publish_lease_expires_at"
+    order      = "ASCENDING"
+  }
+
+  depends_on = [google_project_service.services, google_firestore_database.default]
 }
 
 # Artifact registry
