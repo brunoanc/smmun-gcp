@@ -1,6 +1,7 @@
 """Business logic for the worker: Sheets writes, email content, and per-type processing."""
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 import os
 import time
 import resend
@@ -10,6 +11,10 @@ from runtime import (
     log_info,
     sheets_service,
 )
+
+# Local display timezone
+LOCAL_TIMEZONE = ZoneInfo("America/Merida")
+
 
 # Email templates
 # HTML email templates
@@ -83,6 +88,14 @@ def build_signed_comprobante_url(comprobante_path: str) -> str:
     )
 
 
+# Format Firestore timestamps for Sheets in the local timezone
+def format_sheet_timestamp(created_at) -> str:
+    if not created_at:
+        return ""
+
+    return created_at.astimezone(LOCAL_TIMEZONE).strftime("%d/%m/%Y, %H:%M:%S")
+
+
 # Process one delegacion submission end to end
 def process_delegacion_submission(data: dict, request_id: str):
     inscripcion = data["data"]
@@ -98,8 +111,7 @@ def process_delegacion_submission(data: dict, request_id: str):
     codelegacion = inscripcion["modalidad"] == "pareja"
     p1 = inscripcion["participantes"][0]
     p2 = inscripcion["participantes"][1] if codelegacion and len(inscripcion["participantes"]) > 1 else {}
-    created_at = data.get("created_at")
-    fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
+    fecha_str = format_sheet_timestamp(data.get("created_at"))
 
     row_values = [
         False,
@@ -277,8 +289,7 @@ def process_faculty_submission(data: dict, request_id: str):
     body = {"requests": [{"addSheet": {"properties": {"title": title}}}]}
 
     sheets_service.spreadsheets().batchUpdate(spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=body).execute()
-    created_at = data.get("created_at")
-    fecha_str = created_at.strftime("%d/%m/%Y, %H:%M:%S") if created_at else ""
+    fecha_str = format_sheet_timestamp(data.get("created_at"))
 
     row_values = [
         False,
