@@ -35,15 +35,6 @@ resource "google_project_iam_member" "api_datastore_user" {
   depends_on = [google_project_service.services]
 }
 
-# TODO: eliminar después del siguiente deployment
-resource "google_pubsub_topic_iam_member" "api_pubsub_publisher_compat" {
-  topic  = google_pubsub_topic.inscripciones.name
-  role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${google_service_account.api.email}"
-
-  depends_on = [google_project_service.services]
-}
-
 # Roles for worker service account
 resource "google_project_iam_member" "worker_storage_viewer" {
   project = var.project_id
