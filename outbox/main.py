@@ -142,7 +142,6 @@ def claim_outbox_entry(doc_ref):
                 "attempt_count": firestore.Increment(1),
                 "updated_at": now,
             },
-
         )
         data["outbox_id"] = doc.id
         data["publisher_request_id"] = publisher_request_id
@@ -175,7 +174,6 @@ def publish_outbox_entry(doc_ref, entry: dict):
                     "submission_type": submission_type,
                 }
             ).encode("utf-8"),
-
         ).result()
 
     except Exception as exc:

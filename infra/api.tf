@@ -25,12 +25,6 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.outbox_collection_name
       }
 
-      # TODO: eliminar después del siguiente deployment
-      env {
-        name  = "PUB_SUB_TOPIC_NAME"
-        value = google_pubsub_topic.inscripciones.name
-      }
-
       env {
         name  = "COMPROBANTES_BUCKET_NAME"
         value = google_storage_bucket.comprobantes.name
