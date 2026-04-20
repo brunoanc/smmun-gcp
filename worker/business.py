@@ -16,7 +16,6 @@ from runtime import (
 LOCAL_TIMEZONE = ZoneInfo("America/Merida")
 
 
-# Email templates
 # HTML email templates
 with (
     open("email/codelegacion.html", "r", encoding="utf-8") as co,
@@ -97,7 +96,7 @@ def format_sheet_timestamp(created_at) -> str:
 
 
 # Process one delegacion submission end to end
-def process_delegacion_submission(data: dict, request_id: str):
+def process_delegacion_submission(data: dict, request_id: str, submission_id: str):
     inscripcion = data["data"]
     submission_type = "delegacion"
     log_info(
@@ -262,6 +261,9 @@ def process_delegacion_submission(data: dict, request_id: str):
             "to": destinatarios,
             "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
             "html": html,
+        },
+        {
+            "idempotency_key": f"delegacion-confirmation/{submission_id}",
         }
     )
     log_info(
@@ -273,7 +275,7 @@ def process_delegacion_submission(data: dict, request_id: str):
 
 
 # Process one faculty submission end to end
-def process_faculty_submission(data: dict, request_id: str):
+def process_faculty_submission(data: dict, request_id: str, submission_id: str):
     inscripcion = data["data"]
     submission_type = "faculty"
     log_info(
@@ -409,6 +411,9 @@ def process_faculty_submission(data: dict, request_id: str):
             "to": [inscripcion["faculty"]["correo"]],
             "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
             "html": html,
+        },
+        {
+            "idempotency_key": f"faculty-confirmation/{submission_id}",
         }
     )
 
@@ -418,6 +423,9 @@ def process_faculty_submission(data: dict, request_id: str):
             "to": "secretariadefinanzas@smmun.com",
             "subject": f"FACULTY: {inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
             "html": html,
+        },
+        {
+            "idempotency_key": f"faculty-internal-notification/{submission_id}",
         }
     )
 

@@ -126,9 +126,9 @@ def process_submission(submission_id: str, request_id: str, submission_type: str
         )
 
         if submission_type == "delegacion":
-            process_delegacion_submission(data, request_id)
+            process_delegacion_submission(data, request_id, submission_id)
         else:
-            process_faculty_submission(data, request_id)
+            process_faculty_submission(data, request_id, submission_id)
 
         doc_ref.update({"status": "completed"})
         log_info(
