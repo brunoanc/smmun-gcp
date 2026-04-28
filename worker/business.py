@@ -9,6 +9,7 @@ from runtime import (
     comprobantes_bucket,
     google_credentials,
     log_info,
+    run_checkpointed_side_effect,
     sheets_service,
 )
 
@@ -96,7 +97,7 @@ def format_sheet_timestamp(created_at) -> str:
 
 
 # Process one delegacion submission end to end
-def process_delegacion_submission(data: dict, request_id: str, submission_id: str):
+def process_delegacion_submission(data: dict, request_id: str, submission_id: str, doc_ref, lease_owner: str):
     inscripcion = data["data"]
     submission_type = "delegacion"
     log_info(
@@ -168,10 +169,21 @@ def process_delegacion_submission(data: dict, request_id: str, submission_id: st
         ]
     }
 
-    sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId=os.environ["DELEGACIONES_SPREADSHEET_ID"],
-        body=append_cells_request,
-    ).execute()
+    def write_sheets():
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=os.environ["DELEGACIONES_SPREADSHEET_ID"],
+            body=append_cells_request,
+        ).execute()
+
+    run_checkpointed_side_effect(
+        doc_ref,
+        lease_owner=lease_owner,
+        checkpoint_name="sheets",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+        callback=write_sheets,
+    )
 
     destinatarios = list(filter(None, [p1.get("correo"), p2.get("correo")]))
 
@@ -255,16 +267,27 @@ def process_delegacion_submission(data: dict, request_id: str, submission_id: st
             comite_3_opcion_3=inscripcion["comites"][2]["opciones"][2],
         )
 
-    resend.Emails.send(
-        {
-            "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
-            "to": destinatarios,
-            "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
-            "html": html,
-        },
-        {
-            "idempotency_key": f"delegacion-confirmation/{submission_id}",
-        }
+    def send_confirmation_email():
+        resend.Emails.send(
+            {
+                "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
+                "to": destinatarios,
+                "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
+                "html": html,
+            },
+            {
+                "idempotency_key": f"delegacion-confirmation/{submission_id}",
+            },
+        )
+
+    run_checkpointed_side_effect(
+        doc_ref,
+        lease_owner=lease_owner,
+        checkpoint_name="resend_confirmation",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+        callback=send_confirmation_email,
     )
     log_info(
         "delegacion_processing_finished",
@@ -275,7 +298,7 @@ def process_delegacion_submission(data: dict, request_id: str, submission_id: st
 
 
 # Process one faculty submission end to end
-def process_faculty_submission(data: dict, request_id: str, submission_id: str):
+def process_faculty_submission(data: dict, request_id: str, submission_id: str, doc_ref, lease_owner: str):
     inscripcion = data["data"]
     submission_type = "faculty"
     log_info(
@@ -285,70 +308,89 @@ def process_faculty_submission(data: dict, request_id: str, submission_id: str):
     )
 
     url = build_signed_comprobante_url(data["file_path"])
-    timestamp = int(time.time())
-
-    title = f"{inscripcion['institucion']}_{timestamp}"
-    body = {"requests": [{"addSheet": {"properties": {"title": title}}}]}
-
-    sheets_service.spreadsheets().batchUpdate(spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=body).execute()
     fecha_str = format_sheet_timestamp(data.get("created_at"))
 
-    row_values = [
-        False,
-        fecha_str,
-        inscripcion["institucion"],
-        inscripcion["numero_delegaciones"],
-        inscripcion["faculty"]["nombre"],
-        inscripcion["faculty"]["apellido"],
-        inscripcion["faculty"]["celular"],
-        inscripcion["faculty"]["correo"],
-        inscripcion["faculty"]["pais"],
-        inscripcion["faculty"]["ciudad_estado"],
-        url,
-    ]
-    append_cells_request = {
-        "requests": [
-            {
-                "appendCells": {
-                    "tableId": os.environ["FACULTY_GENERAL_TABLE_ID"],
-                    "rows": [{"values": [cell(v) for v in row_values]}],
-                    "fields": "*",
-                    "sheetId": os.environ["FACULTY_GENERAL_SHEET_ID"],
+    def write_sheets():
+        timestamp = int(time.time())
+        title = f"{inscripcion['institucion']}_{timestamp}"
+        add_sheet_body = {"requests": [{"addSheet": {"properties": {"title": title}}}]}
+
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
+            body=add_sheet_body,
+        ).execute()
+
+        row_values = [
+            False,
+            fecha_str,
+            inscripcion["institucion"],
+            inscripcion["numero_delegaciones"],
+            inscripcion["faculty"]["nombre"],
+            inscripcion["faculty"]["apellido"],
+            inscripcion["faculty"]["celular"],
+            inscripcion["faculty"]["correo"],
+            inscripcion["faculty"]["pais"],
+            inscripcion["faculty"]["ciudad_estado"],
+            url,
+        ]
+        append_cells_request = {
+            "requests": [
+                {
+                    "appendCells": {
+                        "tableId": os.environ["FACULTY_GENERAL_TABLE_ID"],
+                        "rows": [{"values": [cell(v) for v in row_values]}],
+                        "fields": "*",
+                        "sheetId": os.environ["FACULTY_GENERAL_SHEET_ID"],
+                    }
                 }
-            }
-        ]
-    }
-    sheets_service.spreadsheets().batchUpdate(spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=append_cells_request).execute()
+            ]
+        }
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
+            body=append_cells_request,
+        ).execute()
 
-    body = {
-        "values": [
-            [inscripcion["institucion"]],
-            ["Nombre:", f"{inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}"],
-            ["Celular:", inscripcion["faculty"]["celular"]],
-            ["Correo:", inscripcion["faculty"]["correo"]],
-            ["Lugar de residencia:", f"{inscripcion['faculty']['ciudad_estado']}, {inscripcion['faculty']['pais']}"],
-            ["Número de delegaciones:", inscripcion["numero_delegaciones"]],
-            ["Fecha de inscripción", fecha_str],
-            ["Comprobante de pago:", url],
-            [],
-            [
-                "Nombre",
-                "Apellido",
-                "Edad",
-                "Celular",
-                "Correo",
-                "Lugar de residencia",
-                "Escolaridad",
-                "Escuela",
-            ],
-        ]
-    }
+        values_body = {
+            "values": [
+                [inscripcion["institucion"]],
+                ["Nombre:", f"{inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}"],
+                ["Celular:", inscripcion["faculty"]["celular"]],
+                ["Correo:", inscripcion["faculty"]["correo"]],
+                ["Lugar de residencia:", f"{inscripcion['faculty']['ciudad_estado']}, {inscripcion['faculty']['pais']}"],
+                ["Número de delegaciones:", inscripcion["numero_delegaciones"]],
+                ["Fecha de inscripción", fecha_str],
+                ["Comprobante de pago:", url],
+                [],
+                [
+                    "Nombre",
+                    "Apellido",
+                    "Edad",
+                    "Celular",
+                    "Correo",
+                    "Lugar de residencia",
+                    "Escolaridad",
+                    "Escuela",
+                ],
+            ]
+        }
 
-    delegaciones = []
+        delegaciones = []
 
-    for i in range(inscripcion["numero_delegaciones"]):
-        body["values"].append(
-            [
+        for i in range(inscripcion["numero_delegaciones"]):
+            values_body["values"].append(
+                [
+                    inscripcion["delegaciones"][i].get("nombre"),
+                    inscripcion["delegaciones"][i].get("apellido"),
+                    inscripcion["delegaciones"][i].get("edad"),
+                    inscripcion["delegaciones"][i].get("celular"),
+                    inscripcion["delegaciones"][i].get("correo"),
+                    f"{inscripcion['delegaciones'][i].get('ciudad_estado')}, {inscripcion['delegaciones'][i].get('pais')}",
+                    inscripcion["delegaciones"][i].get("escolaridad"),
+                    inscripcion["delegaciones"][i].get("escuela"),
+                ]
+            )
+            delegaciones_row = [
+                inscripcion["institucion"],
                 inscripcion["delegaciones"][i].get("nombre"),
                 inscripcion["delegaciones"][i].get("apellido"),
                 inscripcion["delegaciones"][i].get("edad"),
@@ -358,41 +400,42 @@ def process_faculty_submission(data: dict, request_id: str, submission_id: str):
                 inscripcion["delegaciones"][i].get("escolaridad"),
                 inscripcion["delegaciones"][i].get("escuela"),
             ]
-        )
-        delegaciones_row = [
-            inscripcion["institucion"],
-            inscripcion["delegaciones"][i].get("nombre"),
-            inscripcion["delegaciones"][i].get("apellido"),
-            inscripcion["delegaciones"][i].get("edad"),
-            inscripcion["delegaciones"][i].get("celular"),
-            inscripcion["delegaciones"][i].get("correo"),
-            f"{inscripcion['delegaciones'][i].get('ciudad_estado')}, {inscripcion['delegaciones'][i].get('pais')}",
-            inscripcion["delegaciones"][i].get("escolaridad"),
-            inscripcion["delegaciones"][i].get("escuela"),
-        ]
-        delegaciones.append({"values": [cell(v) for v in delegaciones_row]})
+            delegaciones.append({"values": [cell(v) for v in delegaciones_row]})
 
-    sheets_service.spreadsheets().values().append(
-        spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
-        range=f"{title}!A:A",
-        valueInputOption="USER_ENTERED",
-        body=body,
-    ).execute()
+        sheets_service.spreadsheets().values().append(
+            spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
+            range=f"{title}!A:A",
+            valueInputOption="USER_ENTERED",
+            body=values_body,
+        ).execute()
 
-    append_cells_request = {
-        "requests": [
-            {
-                "appendCells": {
-                    "tableId": os.environ["FACULTY_DELEGACIONES_TABLE_ID"],
-                    "rows": delegaciones,
-                    "fields": "*",
-                    "sheetId": os.environ["FACULTY_DELEGACIONES_SHEET_ID"],
+        append_delegaciones_request = {
+            "requests": [
+                {
+                    "appendCells": {
+                        "tableId": os.environ["FACULTY_DELEGACIONES_TABLE_ID"],
+                        "rows": delegaciones,
+                        "fields": "*",
+                        "sheetId": os.environ["FACULTY_DELEGACIONES_SHEET_ID"],
+                    }
                 }
-            }
-        ]
-    }
+            ]
+        }
 
-    sheets_service.spreadsheets().batchUpdate(spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"], body=append_cells_request).execute()
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=os.environ["FACULTY_SPREADSHEET_ID"],
+            body=append_delegaciones_request,
+        ).execute()
+
+    run_checkpointed_side_effect(
+        doc_ref,
+        lease_owner=lease_owner,
+        checkpoint_name="sheets",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+        callback=write_sheets,
+    )
 
     html = html_emails["faculty"].format(
         institucion_delegacion_oficial=inscripcion["institucion"],
@@ -405,28 +448,50 @@ def process_faculty_submission(data: dict, request_id: str, submission_id: str):
         pais_faculty=inscripcion["faculty"]["pais"],
     )
 
-    resend.Emails.send(
-        {
-            "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
-            "to": [inscripcion["faculty"]["correo"]],
-            "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
-            "html": html,
-        },
-        {
-            "idempotency_key": f"faculty-confirmation/{submission_id}",
-        }
+    def send_confirmation_email():
+        resend.Emails.send(
+            {
+                "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
+                "to": [inscripcion["faculty"]["correo"]],
+                "subject": "¡Gracias! - SMMUN 2026: Una Nueva Historia",
+                "html": html,
+            },
+            {
+                "idempotency_key": f"faculty-confirmation/{submission_id}",
+            },
+        )
+
+    run_checkpointed_side_effect(
+        doc_ref,
+        lease_owner=lease_owner,
+        checkpoint_name="resend_confirmation",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+        callback=send_confirmation_email,
     )
 
-    resend.Emails.send(
-        {
-            "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
-            "to": "secretariadefinanzas@smmun.com",
-            "subject": f"FACULTY: {inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
-            "html": html,
-        },
-        {
-            "idempotency_key": f"faculty-internal-notification/{submission_id}",
-        }
+    def send_internal_email():
+        resend.Emails.send(
+            {
+                "from": "Secretaría de Finanzas SMMUN <secretariadefinanzas@smmun.com>",
+                "to": "secretariadefinanzas@smmun.com",
+                "subject": f"FACULTY: {inscripcion['faculty']['nombre']} {inscripcion['faculty']['apellido']}",
+                "html": html,
+            },
+            {
+                "idempotency_key": f"faculty-internal-notification/{submission_id}",
+            },
+        )
+
+    run_checkpointed_side_effect(
+        doc_ref,
+        lease_owner=lease_owner,
+        checkpoint_name="resend_internal_notification",
+        request_id=request_id,
+        submission_id=submission_id,
+        submission_type=submission_type,
+        callback=send_internal_email,
     )
 
     log_info(
