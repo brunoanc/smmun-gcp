@@ -70,6 +70,25 @@ Cloud-native, event-driven backend for handling conference registrations on Goog
 
 ---
 
+## Security Design
+
+This system is designed around secure public form ingestion, data integrity, and resilient asynchronous processing.
+
+Key mechanisms:
+
+- **Idempotent API ingestion:** prevents duplicate submissions and mitigates replay and duplicate submission scenarios under concurrent conditions using client idempotency keys and SHA-256 payload hashing.
+- **Transactional acceptance boundary:** commits the submission, idempotency record, and outbox row atomically in Firestore before returning confirmation.
+- **Reliable outbox delivery:** recovers from partial failure between database writes and Pub/Sub publication using pending rows, publishing leases, and a scheduled sweep.
+- **Worker-side idempotency:** transactionally claims submissions so duplicate Pub/Sub deliveries do not execute downstream side effects twice.
+- **Private file handling:** validates upload size, MIME type, and extension before storing comprobantes in a private Cloud Storage bucket with public access prevention.
+- **Service separation:** structures IAM around separate service accounts to follow a least-privilege model per component and stores the Resend API key in Secret Manager.
+- **Request tracing:** propagates `request_id` through API, Firestore, Pub/Sub, outbox, and worker logs for debugging and incident analysis.
+- **Abuse detection signals:** logs a non-blocking `potential_abuse_detected` signal when one API instance observes high-frequency registration attempts from the same hashed source.
+
+See [Security Design](./docs/security.md) and [Threat Model](./docs/threat-model.md) for details.
+
+---
+
 ## Structure
 
 - `/api` FastAPI service (Cloud Run)

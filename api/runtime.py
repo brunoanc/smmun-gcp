@@ -1,5 +1,6 @@
 """GCP/runtime helpers for the API: app setup, logging, redirects, idempotency, and persistence."""
 
+from collections import deque
 from datetime import datetime, timezone
 from fastapi import APIRouter, FastAPI, Request, UploadFile, status
 from fastapi.exceptions import RequestValidationError
@@ -12,6 +13,7 @@ from time import perf_counter
 from urllib.parse import urlparse
 from uuid import uuid4
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -53,6 +55,7 @@ SAFE_CONTEXT_KEYS = {
     "modalidad",
     "tipo",
     "content_type",
+    "extension",
     "size",
     "esperado",
     "recibido",
@@ -65,6 +68,15 @@ SAFE_CONTEXT_KEYS = {
 IDEMPOTENCY_RECOVERY_WINDOW_SECONDS = 300
 IDEMPOTENCY_CLAIM_RECOVERY_SECONDS = 30
 IDEMPOTENCY_CLAIM_HEARTBEAT_SECONDS = 10
+
+
+# Best-effort abuse signal timing (instance-local observability)
+REGISTRATION_ABUSE_PATHS = {"/registro/delegaciones", "/registro/faculty"}
+REGISTRATION_ABUSE_WINDOW_SECONDS = 60
+REGISTRATION_ABUSE_THRESHOLD = 10
+REGISTRATION_ABUSE_MAX_SOURCES = 1024
+registration_attempts_by_source: dict[str, deque[float]] = {}
+registration_attempts_lock = threading.Lock()
 
 
 # Cloud Storage backend
@@ -189,6 +201,77 @@ def raise_validation_error(request_id: str, message: str, **context):
     raise ValueError(message)
 
 
+# Remove request timestamps outside the active abuse-detection window
+def prune_expired_registration_attempts(attempts: deque[float], now: float) -> None:
+    while attempts and now - attempts[0] > REGISTRATION_ABUSE_WINDOW_SECONDS:
+        attempts.popleft()
+
+
+# Bound instance-local abuse tracking so high-cardinality traffic cannot grow memory indefinitely
+def sweep_registration_abuse_sources(now: float) -> None:
+    for tracked_source_hash, attempts in list(registration_attempts_by_source.items()):
+        prune_expired_registration_attempts(attempts, now)
+
+        if not attempts:
+            del registration_attempts_by_source[tracked_source_hash]
+
+
+# Resolve the best-effort abuse bucket source for the current public Cloud Run setup
+def get_registration_abuse_source(request: Request) -> tuple[str, str]:
+    if request.client and request.client.host:
+        try:
+            ipaddress.ip_address(request.client.host)
+        except ValueError:
+            pass
+        else:
+            return request.client.host, "socket_peer"
+
+    return "unknown", "unknown"
+
+
+# Record high-frequency registration attempts without blocking the request
+def record_registration_abuse_signal(request: Request, request_id: str) -> None:
+    if request.method != "POST" or request.url.path not in REGISTRATION_ABUSE_PATHS:
+        return
+
+    source, source_type = get_registration_abuse_source(request)
+    source_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    now = perf_counter()
+
+    with registration_attempts_lock:
+        sweep_registration_abuse_sources(now)
+        attempts = registration_attempts_by_source.pop(source_hash, None)
+
+        if attempts is None:
+            if len(registration_attempts_by_source) >= REGISTRATION_ABUSE_MAX_SOURCES:
+                oldest_source_hash = next(iter(registration_attempts_by_source), None)
+
+                if oldest_source_hash is not None:
+                    del registration_attempts_by_source[oldest_source_hash]
+
+            attempts = deque()
+
+        attempts.append(now)
+        registration_attempts_by_source[source_hash] = attempts
+        attempts_in_window = len(attempts)
+        tracked_sources = len(registration_attempts_by_source)
+
+    if attempts_in_window > REGISTRATION_ABUSE_THRESHOLD:
+        log_warning(
+            "potential_abuse_detected",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            source_hash=source_hash,
+            source_type=source_type,
+            attempts_in_window=attempts_in_window,
+            window_seconds=REGISTRATION_ABUSE_WINDOW_SECONDS,
+            threshold=REGISTRATION_ABUSE_THRESHOLD,
+            tracked_sources=tracked_sources,
+            max_tracked_sources=REGISTRATION_ABUSE_MAX_SOURCES,
+        )
+
+
 # Attach or generate a request ID and log the request lifecycle
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
@@ -202,6 +285,7 @@ async def request_id_middleware(request: Request, call_next):
         method=request.method,
         path=request.url.path,
     )
+    record_registration_abuse_signal(request, request_id)
 
     try:
         response = await call_next(request)

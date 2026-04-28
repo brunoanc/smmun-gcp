@@ -1,0 +1,146 @@
+# Threat model
+
+This document describes the main abuse and reliability threats considered for the SMMUN registration pipeline.
+
+The system accepts public registration forms, stores uploaded comprobantes, persists submissions in Firestore, publishes asynchronous work through Pub/Sub, and sends downstream side effects through Google Sheets and Resend.
+
+## Assets
+
+- Registration data submitted by delegates and faculty advisors
+- Uploaded payment/comprobante files stored in Cloud Storage
+- Submission state in Firestore
+- Pub/Sub messages used to trigger asynchronous processing
+- Resend API key stored in Secret Manager
+- Google Sheets rows generated from accepted submissions
+
+## Trust boundaries
+
+- Browser to public FastAPI API on Cloud Run
+- API to Firestore and Cloud Storage
+- Firestore outbox to Pub/Sub publisher function
+- Pub/Sub to worker function
+- Worker to Google Sheets, Resend, and Cloud Storage signed URL generation
+
+## Threats and mitigations
+
+### Duplicate or replayed submissions
+
+Vector: repeated HTTP POSTs, browser retries, network retries, or users submitting the same form multiple times.
+
+Mitigations:
+
+- Frontend sends an `idempotency_key` per submit attempt.
+- API validates the key format and stores an idempotency record in Firestore.
+- API computes a SHA-256 payload hash over normalized form fields and uploaded file bytes.
+- Same key plus same payload replays the canonical submission result instead of creating a second submission.
+- Same key plus different payload is rejected and instructs the browser to rotate the key.
+- Firestore transactions commit the idempotency record, submission, and outbox row together.
+
+Residual risk:
+
+- Idempotency protects duplicate acceptance, not volumetric denial of service. High-volume traffic should be handled with Cloud Armor or another edge control if this becomes a production concern.
+
+### Malformed or invalid input
+
+Vector: direct API calls bypassing browser-side validation, malformed form fields, invalid committee selections, or unexpected faculty delegation counts.
+
+Mitigations:
+
+- FastAPI and Pydantic validate field presence, format, and maximum length.
+- Backend enforces business rules such as age ranges, committee uniqueness, codelegation restrictions, official delegation fields, and faculty delegation count consistency.
+- Validation failures are logged with sanitized context rather than raw submitted values.
+- User-facing failures redirect to the frontend error page.
+
+Residual risk:
+
+- Validation is application-specific and should be reviewed whenever registration rules change.
+
+### File upload abuse
+
+Vector: oversized files, unsupported file types, or attempts to expose uploaded files publicly.
+
+Mitigations:
+
+- API accepts only approved image/PDF filename extensions.
+- API validates MIME type against the filename extension, with a HEIC/HEIF fallback for empty or generic mobile-client MIME values.
+- API rejects files larger than 5 MiB.
+- Uploaded files are stored in a Cloud Storage bucket with uniform bucket-level access enabled.
+- Public access prevention is enforced on the bucket.
+- Worker generates signed URLs for controlled file access instead of exposing objects publicly.
+
+Residual risk:
+
+- The current system validates extension, MIME type, and size but does not perform content sniffing or malware scanning. If uploaded files are later opened by staff at scale, add asynchronous scanning before downstream distribution.
+
+### Worker re-execution and Pub/Sub duplicate delivery
+
+Vector: Pub/Sub at-least-once delivery, function retries, or duplicate messages for the same submission.
+
+Mitigations:
+
+- Worker claims a submission with a Firestore transaction.
+- Submissions already in `processing`, `completed`, or `failed` are skipped.
+- The worker processes side effects only after the claim succeeds.
+- Terminal status is persisted as `completed` or `failed`.
+
+Residual risk:
+
+- Downstream side effects such as email and Google Sheets writes are not fully reversible. Failed submissions are not retried automatically by the worker because repeated downstream side effects may not be idempotent.
+
+### Partial failure between database commit and message publication
+
+Vector: API accepts a submission but crashes before publishing the Pub/Sub message.
+
+Mitigations:
+
+- API writes an outbox row atomically with the submission and idempotency commit.
+- A Firestore create trigger publishes new outbox rows quickly.
+- A scheduled sweep revisits pending rows and stale publishing leases.
+- Outbox publication uses a lease owner field so stale invocations do not overwrite newer claims.
+
+Residual risk:
+
+- Outbox recovery depends on the scheduled sweep and Firestore/Eventarc availability.
+
+### Redirect and origin abuse
+
+Vector: forged `Origin` or `Referer` headers attempting to redirect users to an untrusted site.
+
+Mitigations:
+
+- API redirects only to explicitly allowed frontend origins.
+- Unknown origins fall back to `https://smmun.com`.
+- CORS allows POST requests only from configured frontend origins.
+
+Residual risk:
+
+- CORS is not an authentication boundary. Direct HTTP clients can still call public registration endpoints.
+
+### Secret exposure
+
+Vector: accidental disclosure of third-party API keys or embedding secrets into application code.
+
+Mitigations:
+
+- Resend API key is stored in Google Secret Manager.
+- Terraform grants secret access to the worker service account.
+- The API service does not receive the Resend secret.
+
+Residual risk:
+
+- Operational access to Google Cloud resources must still be controlled outside this repository.
+
+### High-frequency registration attempts
+
+Vector: repeated registration POST requests from the same source.
+
+Mitigations:
+
+- API emits a structured `potential_abuse_detected` warning when an instance observes more than 10 registration attempts from the same hashed socket peer source in 60 seconds.
+- The source identity is hashed before logging.
+- Per-instance tracking is bounded and evicts stale or least-recently-active sources to avoid unbounded memory growth.
+- Detection is intentionally non-blocking so legitimate users are not rejected by an in-memory heuristic.
+
+Residual risk:
+
+- This signal is instance-local and best effort. It is not a distributed rate limiter and may be noisy behind Cloud Run's public proxy path. Use Cloud Armor, reCAPTCHA, or another trusted edge-level control for enforcement.

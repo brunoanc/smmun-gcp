@@ -2,12 +2,12 @@
 
 from dataclasses import dataclass, fields as dataclass_fields
 from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import RedirectResponse
 from pydantic import EmailStr
 from typing import Optional, cast
 import json
-import mimetypes
 import unicodedata
 import hashlib
 from uuid import uuid4
@@ -57,6 +57,18 @@ TIPOS_SOLO_INDIVIDUAL = {
     "representantes_nasa",
 }
 COMITES_CON_TIPOS = {"fia", "fhcm", "nasa", "cumbre_futuro"}
+
+# Comprobante validation
+MAX_COMPROBANTE_SIZE_BYTES = 5 * 1024 * 1024
+ALLOWED_COMPROBANTE_MIME_TYPES_BY_EXTENSION = {
+    ".pdf": {"application/pdf"},
+    ".png": {"image/png"},
+    ".jpg": {"image/jpeg", "image/jpg", "image/pjpeg"},
+    ".jpeg": {"image/jpeg", "image/jpg", "image/pjpeg"},
+    ".webp": {"image/webp"},
+    ".heic": {"", "application/octet-stream", "image/heic", "image/heif", "image/heic-sequence"},
+    ".heif": {"", "application/octet-stream", "image/heif", "image/heic", "image/heif-sequence"},
+}
 
 
 # All valid delegations
@@ -351,29 +363,59 @@ def build_faculty_data(data: FacultyFormData, delegaciones: list[dict]) -> dict:
     }
 
 
+# Validate uploaded comprobante size, MIME type, and filename extension
+def validate_comprobante_upload(request_id: str, comprobante: UploadFile) -> tuple[str, str]:
+    if comprobante.size is None:
+        raise_validation_error(request_id, "No se envió la imagen.")
+
+    content_type = (comprobante.content_type or "").lower().split(";", 1)[0].strip()
+    extension = Path(comprobante.filename or "").suffix.lower()
+    allowed_content_types = ALLOWED_COMPROBANTE_MIME_TYPES_BY_EXTENSION.get(extension)
+
+    if allowed_content_types is None or comprobante.size > MAX_COMPROBANTE_SIZE_BYTES:
+        raise_validation_error(
+            request_id,
+            "Imagen inválida.",
+            content_type=content_type,
+            extension=extension,
+            size=comprobante.size,
+        )
+
+    if content_type not in allowed_content_types:
+        raise_validation_error(
+            request_id,
+            "Imagen inválida.",
+            content_type=content_type,
+            extension=extension,
+            size=comprobante.size,
+        )
+
+    return content_type, extension
+
+
 # Upload a comprobante file to Cloud Storage
 def upload_comprobante(
     *,
     comprobante: UploadFile,
     blob_name: str,
+    content_type: str,
+    extension: str,
     request_id: str,
     submission_id: str,
     submission_type: str,
 ) -> tuple[str, object]:
-    mime_type = mimetypes.guess_type(comprobante.filename)[0] or "application/octet-stream"
-    extension = mimetypes.guess_extension(mime_type) or ".bin"
     final_blob_name = f"{blob_name}{extension}"
     blob = comprobantes_bucket.blob(final_blob_name)
     comprobante.file.seek(0)
 
     try:
-        blob.upload_from_file(comprobante.file, content_type=mime_type)
+        blob.upload_from_file(comprobante.file, content_type=content_type)
         log_info(
             "upload_succeeded",
             request_id=request_id,
             submission_id=submission_id,
             submission_type=submission_type,
-            content_type=mime_type,
+            content_type=content_type,
             size_bytes=comprobante.size,
             extension=extension,
         )
@@ -383,7 +425,7 @@ def upload_comprobante(
             request_id=request_id,
             submission_id=submission_id,
             submission_type=submission_type,
-            content_type=mime_type,
+            content_type=content_type,
             size_bytes=comprobante.size,
             extension=extension,
         )
@@ -588,17 +630,7 @@ async def registrar(
     normalized_idempotency_key = validate_idempotency_key(request_id, data.idempotency_key)
     log_info("delegaciones_start", request_id=request_id, modalidad=data.modalidad)
 
-    if comprobante.content_type is None or comprobante.size is None:
-        raise_validation_error(request_id, "No se envió la imagen.")
-
-    if not (comprobante.content_type.startswith("image/") or comprobante.content_type == "application/pdf") or comprobante.size > 5242880:
-        raise_validation_error(
-            request_id,
-            "Imagen inválida.",
-            content_type=comprobante.content_type,
-            size=comprobante.size,
-        )
-
+    comprobante_content_type, comprobante_extension = validate_comprobante_upload(request_id, comprobante)
     file_hash = await get_upload_file_hash(comprobante)
 
     if data.modalidad == "pareja" and (
@@ -724,6 +756,8 @@ async def registrar(
             blob_name, blob = upload_comprobante(
                 comprobante=comprobante,
                 blob_name=f"uploads/delegaciones/{'CODELEGACION' if es_codelegacion else 'DELEGACION'}_{data.nombre_0}_{data.apellido_0}_{doc_ref_id}",
+                content_type=comprobante_content_type,
+                extension=comprobante_extension,
                 request_id=request_id,
                 submission_id=doc_ref_id,
                 submission_type=submission_type,
@@ -808,17 +842,7 @@ async def registrar_faculty(
         numero_delegaciones=data.numero_delegaciones,
     )
 
-    if comprobante.content_type is None or comprobante.size is None:
-        raise_validation_error(request_id, "No se envió la imagen.")
-
-    if not (comprobante.content_type.startswith("image/") or comprobante.content_type == "application/pdf") or comprobante.size > 5242880:
-        raise_validation_error(
-            request_id,
-            "Imagen inválida.",
-            content_type=comprobante.content_type,
-            size=comprobante.size,
-        )
-
+    comprobante_content_type, comprobante_extension = validate_comprobante_upload(request_id, comprobante)
     file_hash = await get_upload_file_hash(comprobante)
 
     if int(data.numero_delegaciones) < 4:
@@ -880,6 +904,8 @@ async def registrar_faculty(
             blob_name, blob = upload_comprobante(
                 comprobante=comprobante,
                 blob_name=f"uploads/faculty/FACULTY_{data.institucion_delegacion_oficial}_{doc_ref_id}",
+                content_type=comprobante_content_type,
+                extension=comprobante_extension,
                 request_id=request_id,
                 submission_id=doc_ref_id,
                 submission_type=submission_type,
