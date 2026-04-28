@@ -124,7 +124,9 @@ def claim_outbox_entry(doc_ref):
         publishing_is_stale = False
 
         if publish_started_at is not None:
-            publishing_is_stale = (now - publish_started_at.astimezone(timezone.utc)).total_seconds() >= OUTBOX_PUBLISH_LEASE_SECONDS
+            publishing_is_stale = (
+                now - publish_started_at.astimezone(timezone.utc)
+            ).total_seconds() >= OUTBOX_PUBLISH_LEASE_SECONDS
 
         if status == "publishing" and not publishing_is_stale:
             return {"result": "busy"}
@@ -281,7 +283,12 @@ def process_outbox_doc(doc):
 
 # Sweep pending rows and stale leases in bounded batches
 def run_outbox_sweep():
-    pending_docs = outbox_collection.where("status", "==", "pending").order_by("updated_at").limit(OUTBOX_SWEEP_BATCH_SIZE).stream()
+    pending_docs = (
+        outbox_collection.where("status", "==", "pending")
+        .order_by("updated_at")
+        .limit(OUTBOX_SWEEP_BATCH_SIZE)
+        .stream()
+    )
 
     # The sweep only recovers pending rows and stale leases that the create trigger did not finish
     for doc in pending_docs:

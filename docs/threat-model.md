@@ -79,13 +79,17 @@ Vector: Pub/Sub at-least-once delivery, function retries, or duplicate messages 
 Mitigations:
 
 - Worker claims a submission with a Firestore transaction.
-- Submissions already in `processing`, `completed`, or `failed` are skipped.
+- Active `processing` submissions raise a retryable error so Pub/Sub/Eventarc keeps redelivering instead of acknowledging the message too early.
+- `completed`, `failed`, or missing submissions are skipped with a normal acknowledgement.
+- Stale `processing` submissions can be reclaimed after the worker lease expires.
 - The worker processes side effects only after the claim succeeds.
-- Terminal status is persisted as `completed` or `failed`.
+- Sheets and Resend side effects are recorded in Firestore checkpoints.
+- Completed checkpoints are skipped on retry, so a retry resumes at the first incomplete side effect.
+- Terminal status is persisted as `completed` only after all required checkpoints complete, or `failed` after an exception.
 
 Residual risk:
 
-- Downstream side effects such as email and Google Sheets writes are not fully reversible. Failed submissions are not retried automatically by the worker because repeated downstream side effects may not be idempotent.
+- Downstream side effects such as email and Google Sheets writes are not fully reversible. Resend receives deterministic idempotency keys, but Google Sheets uses Firestore checkpoint-only protection. If a worker crashes after a Sheets API success and before recording `sheets.completed`, a stale-lease retry can write to Sheets again and may require manual reconciliation. Failed submissions are not retried automatically because repeated downstream side effects may not be idempotent.
 
 ### Partial failure between database commit and message publication
 

@@ -48,6 +48,19 @@ Used as:
 - `error_message`: string (optional)  
   - Present only if `status = "failed"`
 
+- `worker_lease_owner`: string | null
+  - Active worker invocation that owns `processing`
+
+- `worker_lease_expires_at`: timestamp | null
+  - Allows Pub/Sub retries to reclaim stale `processing` submissions after worker crash
+
+- `worker_started_at`: timestamp | null
+
+- `worker_attempt_count`: number
+
+- `worker_checkpoints`: object
+  - Tracks side-effect progress for Sheets and Resend
+
 ---
 
 ## Field: `data` (object)
@@ -174,11 +187,12 @@ pending → processing → completed
 * `processing`
 
   * Claimed by worker (transactional)
-  * Prevents duplicate processing
+  * Prevents duplicate processing while the worker lease is active
+  * Reclaimable after `worker_lease_expires_at` if the worker crashes
 
 * `completed`
 
-  * Sheets + email successfully executed
+  * Required Sheets + Resend checkpoints are complete
 
 * `failed`
 
@@ -229,8 +243,49 @@ The API success boundary is submission acceptance, not downstream worker complet
 
 Worker uses Firestore transactions to ensure:
 
-* a submission is processed **at most once**
-* duplicate Pub/Sub deliveries are safely ignored
+* only one worker actively owns a submission at a time
+* duplicate Pub/Sub deliveries for terminal submissions are safely ignored
+* duplicate Pub/Sub deliveries during an active worker lease raise a retryable error so the message is redelivered
+* stale `processing` claims can be retried after the worker lease expires
+
+Worker side effects are checkpointed on the submission document:
+
+```json
+{
+  "worker_checkpoints": {
+    "sheets": {
+      "status": "pending | started | completed | failed",
+      "started_at": "timestamp | null",
+      "completed_at": "timestamp | null",
+      "error_message": "string | null",
+      "updated_at": "timestamp | null"
+    },
+    "resend_confirmation": {
+      "status": "pending | started | completed | failed",
+      "started_at": "timestamp | null",
+      "completed_at": "timestamp | null",
+      "error_message": "string | null",
+      "updated_at": "timestamp | null"
+    },
+    "resend_internal_notification": {
+      "status": "pending | started | completed | failed",
+      "started_at": "timestamp | null",
+      "completed_at": "timestamp | null",
+      "error_message": "string | null",
+      "updated_at": "timestamp | null"
+    }
+  }
+}
+```
+
+Required checkpoints:
+
+* `delegacion`: `sheets`, `resend_confirmation`
+* `faculty`: `sheets`, `resend_confirmation`, `resend_internal_notification`
+
+If a checkpoint is already `completed`, the worker skips that side effect on retry. If a checkpoint is `pending`, `started`, or `failed`, the worker attempts that side effect again after a successful stale-lease claim. Resend also receives deterministic idempotency keys per submission.
+
+Sheets uses Firestore checkpoint-only protection. This prevents repeats after Firestore records `sheets.completed`, but a crash after a Sheets API success and before the checkpoint update can still require manual reconciliation.
 
 ---
 
@@ -293,16 +348,20 @@ This keeps Pub/Sub delivery reliability out of the browser request path.
 Given `submission_id`:
 
 1. Retrieve document from Firestore
-2. Attempt to claim (`status → processing`) using transaction
-3. If already processed → exit (idempotent behavior)
+2. Attempt to claim (`status → processing`) using transaction and a worker lease
+3. If already processed or actively leased → exit (idempotent behavior)
 4. Generate signed URL for `file_path`
 5. Process submission:
 
+   * skip any completed checkpoint
+   * mark each side effect checkpoint `started`
    * append data to Google Sheets
+   * mark Sheets checkpoint `completed`
    * send email via Resend
+   * mark Resend checkpoint `completed`
 6. Update Firestore:
 
-   * `status = "completed"`
+   * `status = "completed"` only after all required checkpoints are complete
    * OR `status = "failed"` + `error_message`
 
 ---

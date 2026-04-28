@@ -45,14 +45,18 @@ The system uses a Firestore outbox to avoid losing accepted submissions between 
 
 ## Worker idempotency
 
-Pub/Sub can deliver messages more than once, so the worker claims each submission transactionally.
+Pub/Sub can deliver messages more than once, so the worker claims each submission transactionally with a short Firestore lease.
 
 - `pending` submissions can move to `processing`.
-- `processing`, `completed`, and `failed` submissions are skipped.
-- Successful processing marks the submission `completed`.
+- Active `processing` submissions raise a retryable error so Pub/Sub/Eventarc does not acknowledge the delivery before the lease can expire.
+- `completed`, `failed`, and missing submissions are skipped with a normal acknowledgement.
+- Stale `processing` submissions can be reclaimed after `worker_lease_expires_at`.
+- Worker side effects are tracked in `worker_checkpoints` for Sheets and Resend.
+- Completed checkpoints are skipped on retry, so a crash after Sheets but before Resend resumes with Resend only.
+- Successful processing marks the submission `completed` after all required checkpoints are complete.
 - Exceptions mark the submission `failed` and record an error message.
 
-This prevents duplicate processing when Pub/Sub redelivers a message.
+This prevents duplicate processing while a worker is active and reduces repeated downstream side effects during Pub/Sub retries. Sheets uses Firestore checkpoint-only protection, so a crash after a Sheets API success but before the checkpoint write can still require manual reconciliation.
 
 ## File security
 
@@ -103,4 +107,4 @@ Current IAM is separated by component, but some roles are still project-scoped. 
 - The in-memory abuse signal is not a global rate limiter and may be noisy behind Cloud Run's public proxy path.
 - The project does not currently include malware scanning for uploaded files.
 - The project does not currently enforce Cloud Armor or reCAPTCHA.
-- Worker downstream side effects are not retried automatically after a `failed` terminal state.
+- Worker downstream side effects are retried only when a stale `processing` lease is reclaimed; `failed` remains terminal.
