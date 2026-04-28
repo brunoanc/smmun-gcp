@@ -19,9 +19,9 @@ resource "google_service_account" "worker" {
 }
 
 # Roles for API service account
-resource "google_storage_bucket_iam_member" "api_comprobantes_object_admin" {
+resource "google_storage_bucket_iam_member" "api_comprobantes_object_user" {
   bucket = google_storage_bucket.comprobantes.name
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.api.email}"
 
   depends_on = [google_project_service.services]
@@ -36,10 +36,10 @@ resource "google_project_iam_member" "api_datastore_user" {
 }
 
 # Roles for worker service account
-resource "google_project_iam_member" "worker_storage_viewer" {
-  project = var.project_id
-  role    = "roles/storage.objectViewer"
-  member  = "serviceAccount:${google_service_account.worker.email}"
+resource "google_storage_bucket_iam_member" "worker_comprobantes_object_viewer" {
+  bucket = google_storage_bucket.comprobantes.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.worker.email}"
 
   depends_on = [google_project_service.services]
 }
@@ -52,10 +52,10 @@ resource "google_project_iam_member" "worker_datastore_user" {
   depends_on = [google_project_service.services]
 }
 
-resource "google_project_iam_member" "worker_token_creator" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountTokenCreator"
-  member  = "serviceAccount:${google_service_account.worker.email}"
+resource "google_service_account_iam_member" "worker_signs_for_itself" {
+  service_account_id = google_service_account.worker.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.worker.email}"
 
   depends_on = [google_project_service.services]
 }

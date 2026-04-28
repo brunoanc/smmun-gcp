@@ -75,10 +75,10 @@ resource "google_cloudfunctions2_function" "worker" {
   depends_on = [
     google_project_service.services,
     google_firestore_database.default,
-    google_project_iam_member.worker_storage_viewer,
+    google_storage_bucket_iam_member.worker_comprobantes_object_viewer,
     google_project_iam_member.worker_datastore_user,
     google_pubsub_topic_iam_member.worker_pubsub_publisher,
-    google_project_iam_member.worker_token_creator,
+    google_service_account_iam_member.worker_signs_for_itself,
     google_secret_manager_secret_iam_member.worker_secret_access
   ]
 }

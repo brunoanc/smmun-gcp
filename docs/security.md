@@ -73,18 +73,21 @@ Terraform defines separate service accounts for the API and worker-related funct
 
 API service account:
 
-- writes uploaded files to the comprobantes bucket
+- writes uploaded files to the comprobantes bucket and can delete uploads only for best-effort cleanup when persistence fails
 - reads and writes Firestore submission, idempotency, and outbox data
 
 Worker service account:
 
-- reads uploaded files
+- reads uploaded files from the comprobantes bucket
 - reads and writes Firestore submission state
 - publishes Pub/Sub messages for outbox processing
 - accesses the Resend API key from Secret Manager
 - invokes the relevant Cloud Run function services
+- signs Cloud Storage URLs only as its own service account
 
-Current IAM is separated by component, but some roles are still project-scoped. A future hardening pass should review whether those roles can be narrowed without breaking deployment or runtime behavior.
+The worker's Storage Object Viewer role is bucket-scoped to the comprobantes bucket, and its Service Account Token Creator role is scoped to the worker service account rather than the whole project. This allows signed URL generation without allowing the worker to impersonate unrelated service accounts.
+
+The API intentionally uses Storage Object User instead of Storage Object Creator. Object Creator would be narrower for upload-only behavior, but the API currently deletes uploaded blobs when Firestore/idempotency persistence fails, so creator-only would break cleanup and leave orphaned comprobantes.
 
 ## Secrets
 

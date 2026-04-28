@@ -44,7 +44,7 @@ resource "google_cloud_run_v2_service" "api" {
     google_cloudfunctions2_function.publisher,
     google_cloudfunctions2_function.outbox_sweeper,
     google_cloud_scheduler_job.outbox_sweep,
-    google_storage_bucket_iam_member.api_comprobantes_object_admin,
+    google_storage_bucket_iam_member.api_comprobantes_object_user,
     google_project_iam_member.api_datastore_user
   ]
 }
