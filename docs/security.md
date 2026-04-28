@@ -1,8 +1,8 @@
-# Security design
+# Security Design
 
 The SMMUN registration system is designed around public form ingestion, private file storage, asynchronous processing, and reliable recovery from partial failures.
 
-## Ingestion controls
+## Ingestion Controls
 
 - The public API exposes only POST registration endpoints for submission intake.
 - FastAPI and Pydantic validate form fields before persistence.
@@ -10,18 +10,18 @@ The SMMUN registration system is designed around public form ingestion, private 
 - Uploaded comprobantes are limited to approved image/PDF extensions, MIME validation with a HEIC/HEIF mobile-client fallback, and a 5 MiB size cap.
 - Validation failures are logged with sanitized context to avoid storing raw personal data in logs.
 
-## Idempotency and replay handling
+## Idempotency and Replay Handling
 
 - The frontend sends an `idempotency_key` with each form submission.
 - The API validates the key and stores it in a dedicated Firestore idempotency collection.
 - The API computes a SHA-256 payload hash over normalized fields and uploaded file bytes.
 - Same key plus same payload returns the canonical submission outcome.
 - Same key plus different payload is treated as a conflict and the frontend is told to rotate the key.
-- During rollout, submissions without an explicit key fall back to a deterministic payload-hash key.
+- Submissions without an explicit key fall back to a deterministic payload-hash key for compatibility with older clients.
 
 This protects against accidental double-submits, browser retries, and replay of the same accepted payload.
 
-## Durable acceptance boundary
+## Durable Acceptance Boundary
 
 The API success boundary is durable acceptance, not downstream completion.
 
@@ -31,9 +31,9 @@ When a submission is accepted, the API writes these records in one Firestore tra
 - committed idempotency record
 - outbox row for asynchronous publishing
 
-The API returns success only after those records are durable. Email and Google Sheets writes happen later in the worker.
+The API returns success only after those records are durable. Email and Google Sheets writes are handled asynchronously by the worker.
 
-## Reliable asynchronous delivery
+## Reliable Asynchronous Delivery
 
 The system uses a Firestore outbox to avoid losing accepted submissions between database writes and Pub/Sub publication.
 
@@ -43,7 +43,7 @@ The system uses a Firestore outbox to avoid losing accepted submissions between 
 - Outbox rows move through `pending`, `publishing`, and `sent`.
 - The active publisher lease is tracked so stale invocations do not overwrite newer attempts.
 
-## Worker idempotency
+## Worker Idempotency
 
 Pub/Sub can deliver messages more than once, so the worker claims each submission transactionally with a short Firestore lease.
 
@@ -56,9 +56,9 @@ Pub/Sub can deliver messages more than once, so the worker claims each submissio
 - Successful processing marks the submission `completed` after all required checkpoints are complete.
 - Exceptions mark the submission `failed` and record an error message.
 
-This prevents duplicate processing while a worker is active and reduces repeated downstream side effects during Pub/Sub retries. Sheets uses Firestore checkpoint-only protection, so a crash after a Sheets API success but before the checkpoint write can still require manual reconciliation.
+This prevents duplicate processing while a worker is active and reduces repeated downstream side effects during Pub/Sub retries. Sheets uses Firestore checkpoint-only protection; a crash after a Sheets API success but before the checkpoint write can produce a duplicate downstream row, so reconciliation is handled operationally for that integration.
 
-## File security
+## File Security
 
 - Comprobantes are stored in Cloud Storage.
 - The API validates upload size, MIME type, and filename extension before hashing and storing each file, allowing empty or generic HEIC/HEIF MIME values used by some mobile clients.
@@ -67,7 +67,7 @@ This prevents duplicate processing while a worker is active and reduces repeated
 - Files are not made public.
 - The worker generates signed URLs for controlled access when sending downstream notifications.
 
-## Service separation and IAM
+## Service Separation and IAM
 
 Terraform defines separate service accounts for the API and worker-related functions. IAM is structured around a least-privilege model per component: each component receives only the categories of access it needs for its runtime responsibility.
 
@@ -87,7 +87,7 @@ Worker service account:
 
 The worker's Storage Object Viewer role is bucket-scoped to the comprobantes bucket, and its Service Account Token Creator role is scoped to the worker service account rather than the whole project. This allows signed URL generation without allowing the worker to impersonate unrelated service accounts.
 
-The API intentionally uses Storage Object User instead of Storage Object Creator. Object Creator would be narrower for upload-only behavior, but the API currently deletes uploaded blobs when Firestore/idempotency persistence fails, so creator-only would break cleanup and leave orphaned comprobantes.
+The API uses Storage Object User instead of Storage Object Creator because it performs best-effort cleanup of uploaded blobs when Firestore/idempotency persistence fails. A creator-only role would narrow upload permissions but would also prevent cleanup of orphaned comprobantes.
 
 ## Secrets
 
@@ -95,7 +95,7 @@ The API intentionally uses Storage Object User instead of Storage Object Creator
 - The worker receives access through IAM rather than a plaintext repository value.
 - The API does not need the Resend secret.
 
-## Observability and incident tracing
+## Observability and Incident Tracing
 
 - The API accepts or generates an `X-Request-ID`.
 - Structured JSON logs include `request_id`, component name, event name, severity, and relevant sanitized context.
@@ -104,10 +104,9 @@ The API intentionally uses Storage Object User instead of Storage Object Creator
 - The API emits `potential_abuse_detected` when one Cloud Run instance observes more than 10 registration POST attempts from the same hashed socket peer source in 60 seconds.
 - Abuse tracking is bounded to 1024 sources per instance and evicts stale or least-recently-active sources.
 
-## Current non-goals
+## Operational Considerations
 
 - The API is public by design.
-- The in-memory abuse signal is not a global rate limiter and may be noisy behind Cloud Run's public proxy path.
-- The project does not currently include malware scanning for uploaded files.
-- The project does not currently enforce Cloud Armor or reCAPTCHA.
-- Worker downstream side effects are retried only when a stale `processing` lease is reclaimed; `failed` remains terminal.
+- The in-memory abuse signal is detection-only. Enforcement belongs at the edge through Cloud Armor, reCAPTCHA, or another trusted control when traffic patterns require it.
+- Uploaded files are validated by size, extension, and MIME type. Malware scanning is a separate operational control to add before broader staff distribution or higher-volume intake.
+- Worker retries are conservative around downstream side effects. `failed` remains terminal so operators can inspect failures before another attempt writes to Sheets or sends email again.

@@ -1,4 +1,4 @@
-# SMMUN website and registration system
+# SMMUN Registration Platform
 
 ![GCP](https://img.shields.io/badge/Cloud-GCP-blue)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)
@@ -7,98 +7,115 @@
 
 [🌐 smmun.com](https://smmun.com)
 
-Cloud-native, event-driven backend for handling conference registrations on Google Cloud Platform.
+Cloud-native registration system for SMMUN, built around a static public frontend, a FastAPI ingestion service, and an asynchronous processing pipeline on Google Cloud Platform.
 
----
+The platform accepts delegate and faculty registration forms, stores payment/comprobante uploads privately, records submissions in Firestore, and processes downstream side effects through Google Sheets and Resend without keeping the browser request open.
 
 ## Architecture
 
 ![Architecture Diagram](./docs/architecture.svg)
 
-[Data Model](./docs/data-model.md)
+The submission flow is intentionally split into a fast acceptance path and a retryable background path:
 
----
+1. Users submit registration forms through the static frontend hosted on Firebase Hosting.
+2. The FastAPI service validates form data, uploads comprobantes to a private Cloud Storage bucket, and commits the submission, idempotency record, and outbox row in a single Firestore transaction.
+3. The API returns a confirmation redirect once the submission is durably accepted.
+4. An outbox publisher publishes accepted submissions to Pub/Sub using Firestore triggers and a scheduled recovery sweep.
+5. A worker claims submissions with a Firestore lease, generates signed URLs, writes rows to Google Sheets, and sends confirmation emails through Resend.
 
-## Overview
+Firestore tracks each submission through this lifecycle:
 
-1. Users submit a form via a static frontend (Firebase Hosting)
-2. The API (Cloud Run, FastAPI):
-   - validates input
-   - absorbs duplicate submits using an idempotency key
-   - uploads files to Cloud Storage
-   - stores the submission, idempotency record, and outbox job atomically in Firestore
-   - returns confirmation once the submission is durably accepted
-3. An outbox publisher (Cloud Run functions) asynchronously publishes pending submission events to Pub/Sub
-   - one trigger reacts immediately to newly created outbox rows
-   - a scheduled sweep revisits pending/stale rows until they are sent
-4. A worker (Cloud Functions / Cloud Run functions) processes submissions asynchronously:
-   - generates signed URLs
-   - writes data to Google Sheets
-   - sends confirmation emails (Resend)
-5. Firestore tracks submission state:
-    ```
-    pending → processing → completed / failed
-    ```
+```text
+pending -> processing -> completed / failed
+```
 
+Supporting documentation:
 
----
+- [Data model and processing flow](./docs/data-model.md)
+- [Security design](./docs/security.md)
+- [Threat model](./docs/threat-model.md)
 
 ## Stack
 
-**GCP**
+Google Cloud:
+
 - Cloud Run
 - Cloud Storage
 - Firestore
 - Pub/Sub
 - Cloud Run functions
 
-**External**
+External services:
+
 - Google Sheets API
 - Resend API
 
----
+Frontend:
 
-## Key points
+- Svelte
+- Firebase Hosting
 
-- Event-driven architecture (Pub/Sub)
-- Asynchronous processing via worker
-- API-level idempotency for submission ingestion
-- Reliable asynchronous delivery via Firestore outbox
-- Secure file access with signed URLs
-- Structured logging with request tracing
-- Infrastructure managed with Terraform
+Infrastructure:
 
----
+- Terraform
+- GitHub Actions
 
-## Security Design
+## Reliability
 
-This system is designed around secure public form ingestion, data integrity, and resilient asynchronous processing.
+The backend is designed so a registration can be accepted safely even when downstream services are unavailable or slow.
 
-Key mechanisms:
+- API-level idempotency prevents duplicate submissions from browser retries, repeated clicks, and network retries.
+- Firestore transactions define the acceptance boundary by committing the submission, idempotency record, and outbox row together.
+- The Firestore outbox recovers from failures between database persistence and Pub/Sub publication.
+- Worker leases prevent concurrent processing of the same submission.
+- Worker checkpoints let retries skip completed side effects where possible.
+- Structured logs propagate a `request_id` across API, Firestore, Pub/Sub, outbox, and worker events.
 
-- **Idempotent API ingestion:** prevents duplicate submissions and mitigates replay and duplicate submission scenarios under concurrent conditions using client idempotency keys and SHA-256 payload hashing.
-- **Transactional acceptance boundary:** commits the submission, idempotency record, and outbox row atomically in Firestore before returning confirmation.
-- **Reliable outbox delivery:** recovers from partial failure between database writes and Pub/Sub publication using pending rows, publishing leases, and a scheduled sweep.
-- **Worker-side checkpoints:** transactionally claims submissions and records Sheets/Resend progress so Pub/Sub retries skip completed side effects where possible.
-- **Private file handling:** validates upload size, MIME type, and extension before storing comprobantes in a private Cloud Storage bucket with public access prevention.
-- **Service separation:** structures IAM around separate service accounts to follow a least-privilege model per component and stores the Resend API key in Secret Manager.
-- **Request tracing:** propagates `request_id` through API, Firestore, Pub/Sub, outbox, and worker logs for debugging and incident analysis.
-- **Abuse detection signals:** logs a non-blocking `potential_abuse_detected` signal when one API instance observes high-frequency registration attempts from the same hashed source.
+## Security
 
-See [Security Design](./docs/security.md) and [Threat Model](./docs/threat-model.md) for details.
+The system is designed for public form ingestion with private file handling and least-privilege service separation.
 
----
+- Uploads are validated for size, MIME type, and extension before being stored.
+- Comprobantes are written to a private Cloud Storage bucket with public access prevention.
+- Signed URLs are generated only when downstream staff notifications need controlled file access.
+- The Resend API key is stored in Secret Manager and exposed only to the worker service account.
+- Service accounts are split by component so API, outbox, and worker permissions can be scoped independently.
+- Suspicious high-frequency submission attempts emit structured warning signals without logging raw personal data.
 
-## Structure
+See [Security Design](./docs/security.md) and [Threat Model](./docs/threat-model.md) for implementation details.
 
-- `/api` FastAPI service (Cloud Run)
-- `/worker` Submission processor (Cloud Run functions)
-- `/outbox` Outbox publisher and sweep handlers (Cloud Run functions)
-- `/front` Svelte frontend
-- `/infra` Terraform code
-- `/docs` Architecture diagram
+## Repository Layout
 
----
+- `api/` - FastAPI service deployed on Cloud Run
+- `outbox/` - Firestore outbox publisher and scheduled sweep handlers
+- `worker/` - asynchronous submission processor
+- `front/` - Svelte frontend
+- `infra/` - Terraform configuration for Google Cloud resources
+- `docs/` - architecture, data model, security, and threat model documentation
+
+## Local Development
+
+Each service keeps its dependencies close to its runtime directory.
+
+```bash
+pip install -r api/requirements.txt
+pip install -r outbox/requirements.txt
+pip install -r worker/requirements.txt
+```
+
+The frontend can be built from its own project directory:
+
+```bash
+cd front/smmun-svelte
+npm ci
+npm run build
+```
+
+Deployment configuration is managed through Terraform in `infra/`, with CI workflows under `.github/workflows/`.
+
+## Project Context
+
+SMMUN is a Model United Nations conference. This repository focuses on the public registration workflow and the operational pipeline behind it: reliable form intake, private document handling, durable submission state, and asynchronous integrations with the tools used by the organizing team.
 
 ## Author
 
